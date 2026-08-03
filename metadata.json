@@ -1,0 +1,6 @@
+{
+  "name": "EcoPredict AI",
+  "description": "Scientific platform predicting climate trends across West Africa through artificial intelligence, neural networks, and environmental data science.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
