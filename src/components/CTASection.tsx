@@ -32,7 +32,7 @@ export const CTASection: React.FC<CTASectionProps> = ({ onLogin, onExplore }) =>
               onClick={onExplore}
               className="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-8 py-4 rounded-xl font-bold text-base transition-all cursor-pointer"
             >
-              Explore Live Demo
+              Login to Access
             </button>
           </div>
         </div>

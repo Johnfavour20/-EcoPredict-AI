@@ -22,15 +22,21 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string>('researcher@ecopredict.ai');
   const [resetEmail, setResetEmail] = useState<string>('researcher@ecopredict.ai');
 
-  const handleExplorePlatform = (tab: PlatformTab = 'dashboard') => {
+  const navigateToPlatform = (tab: PlatformTab = 'dashboard') => {
     setPlatformTab(tab);
     setActiveView('platform');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleExplorePlatform = (tab: PlatformTab = 'dashboard') => {
+    setPlatformTab(tab);
+    setActiveView('login');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLoginSuccess = (email: string) => {
     setUserEmail(email);
-    handleExplorePlatform('dashboard');
+    navigateToPlatform(platformTab);
   };
 
   if (activeView === 'login') {

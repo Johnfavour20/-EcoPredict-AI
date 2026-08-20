@@ -39,7 +39,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onLogin }) 
               onClick={onExplore}
               className="bg-white border-2 border-[#E8E3DA] hover:border-[#6E9445]/40 text-[#43493C] hover:text-[#2E5D3D] px-8 py-4 rounded-xl font-bold transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2"
             >
-              <span>Explore Platform</span>
+              <span>Login to Platform</span>
               <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </button>
           </div>
@@ -58,8 +58,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onLogin }) 
             {/* Overlay hint */}
             <div className="absolute inset-0 bg-[#2E5D3D]/0 group-hover:bg-[#2E5D3D]/10 transition-colors flex items-center justify-center">
               <div className="opacity-0 group-hover:opacity-100 bg-[#2E5D3D] text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-all flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm">visibility</span>
-                <span>Open Live Platform Interactive Dashboard</span>
+                <span className="material-symbols-outlined text-sm">login</span>
+                <span>Login to Access Interactive Dashboard</span>
               </div>
             </div>
           </div>

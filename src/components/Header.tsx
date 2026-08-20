@@ -66,18 +66,6 @@ export const Header: React.FC<HeaderProps> = ({
             Features
           </button>
           <button
-            onClick={() => setActiveView('platform')}
-            className={`text-sm font-medium transition-colors flex items-center gap-1 px-3 py-1.5 rounded-lg border ${
-              activeView === 'platform'
-                ? 'bg-[#2E5D3D] text-white border-[#2E5D3D]'
-                : 'border-[#E8E3DA] text-[#2E5D3D] hover:bg-[#6E9445]/10'
-            }`}
-          >
-            <span className="material-symbols-outlined text-sm">dashboard</span>
-            Platform
-          </button>
-
-          <button
             onClick={onOpenLogin}
             className="bg-[#6E9445] hover:bg-[#2E5D3D] text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm"
           >
@@ -87,12 +75,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Mobile menu trigger */}
         <div className="md:hidden flex items-center gap-3">
-          <button
-            onClick={() => setActiveView('platform')}
-            className="text-xs bg-[#2E5D3D] text-white px-3 py-1.5 rounded-lg font-semibold"
-          >
-            Platform
-          </button>
           <button
             onClick={onOpenLogin}
             className="material-symbols-outlined text-[#1B1C1A]"
