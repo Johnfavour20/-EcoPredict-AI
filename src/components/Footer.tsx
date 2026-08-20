@@ -111,7 +111,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
 
       {/* Bottom Legal Line */}
       <div className="max-w-[1280px] mx-auto mt-12 pt-6 border-t border-[#E8E3DA] flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-[#43493C]">
-        <p>© 2024 EcoPredict AI Project. All rights reserved.</p>
+        <p>© 2026 EcoPredict AI Project. All rights reserved.</p>
         <p className="flex items-center gap-1 italic">
           Supporting the Regional Climate Initiative{' '}
           <span
