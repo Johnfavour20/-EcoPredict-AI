@@ -175,21 +175,136 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const isSupportedDatasetFile = (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    const mimeType = file.type.toLowerCase();
+
+    return (
+      ['csv', 'xls', 'xlsx'].includes(extension) ||
+      [
+        'text/csv',
+        'application/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/octet-stream',
+      ].includes(mimeType)
+    );
+  };
+
+  const parseDatasetFromFile = async (file: File) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(new Uint8Array(buffer), {
+      type: 'array',
+      cellDates: true,
+      raw: false,
+    });
+
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: null,
+      raw: false,
+    });
+
+    if (!rows.length) {
+      throw new Error('The uploaded file is empty or does not contain any rows.');
+    }
+
+    const columns = Object.keys(rows[0]);
+    const normalizeColumnName = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const detectClimateColumnType = (columnName: string) => {
+      const normalized = normalizeColumnName(columnName);
+      if (/(date|time|timestamp|datetime|day|month|year|period)/.test(normalized)) return 'date';
+      if (/(temp|temperature|t2m|airtemp|avg_temp|max_temp|min_temp|surface_temp)/.test(normalized)) return 'temperature';
+      if (/(precip|rain|rainfall|ppt|rr|wet|storm)/.test(normalized)) return 'precipitation';
+      if (/(humidity|rh|relative_humidity|specific_humidity)/.test(normalized)) return 'humidity';
+      if (/(wind|speed|gust|u10|v10|velocity)/.test(normalized)) return 'wind';
+      if (/(lat|latitude)/.test(normalized)) return 'latitude';
+      if (/(lon|lng|long|longitude)/.test(normalized)) return 'longitude';
+      if (/(region|country|area|zone|location|site)/.test(normalized)) return 'region';
+      return 'other';
+    };
+
+    const climateColumns = columns
+      .filter((column) => detectClimateColumnType(column) !== 'other')
+      .map((column) => ({
+        name: column,
+        type: detectClimateColumnType(column),
+      }));
+
+    const previewRows = rows.slice(0, 8).map((row) =>
+      Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [key, value === null || value === undefined ? '' : String(value)])
+      )
+    );
+
+    const dateColumn = columns.find((column) => detectClimateColumnType(column) === 'date') || null;
+    const missingByColumn = columns.map((column) => {
+      const missing = rows.filter((row) => {
+        const value = row[column];
+        return value === null || value === undefined || String(value).trim() === '';
+      }).length;
+
+      return {
+        column,
+        missing,
+        missingRate: rows.length ? (missing / rows.length) * 100 : 0,
+      };
+    });
+
+    const totalMissing = missingByColumn.reduce((sum, item) => sum + item.missing, 0);
+    const issues: string[] = [];
+    if (totalMissing > 0) issues.push(`${totalMissing} blank cells detected across the dataset.`);
+    if (!dateColumn) issues.push('No date-like column detected; date validation could not be completed.');
+    if (climateColumns.length === 0) issues.push('No obvious climate metrics were detected in the column names.');
+
+    return {
+      fileName: file.name,
+      rows,
+      rowCount: rows.length,
+      columns,
+      climateColumns,
+      previewRows,
+      validation: {
+        status: issues.length === 0 ? 'valid' : 'warning',
+        missingTotal: totalMissing,
+        missingByColumn,
+        issues,
+        dateRange: null,
+      },
+    };
+  };
+
   const processDatasetWithBackend = async (file: File) => {
+    if (!isSupportedDatasetFile(file)) {
+      throw new Error('Unsupported dataset format. Please upload a CSV (.csv), Excel (.xls), or Excel (.xlsx) file.');
+    }
+
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch('/api/process-dataset', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const response = await fetch('/api/process-dataset', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const payload = await response.json();
-    if (!response.ok || !payload.success) {
-      throw new Error(payload.error || 'Failed to process dataset.');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.success) {
+        console.warn('Backend dataset parsing unavailable, falling back to browser processing.', payload.error || 'Failed to process dataset.');
+        return await parseDatasetFromFile(file);
+      }
+
+      return payload.dataset;
+    } catch (error) {
+      console.warn('Backend upload failed, retrying with browser-side parser.', error);
+      return await parseDatasetFromFile(file);
     }
-
-    return payload.dataset;
   };
 
   // Animated progress bar effect inside modal
@@ -659,7 +774,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                   <label className="bg-[#C6F096] hover:bg-[#B8E189] text-[#0F2000] px-6 py-3 rounded-[14px] font-semibold flex items-center gap-2 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer inline-flex text-xs">
                     <span className="material-symbols-outlined text-lg">upload_file</span>
                     <span>Upload Dataset</span>
-                    <input type="file" onChange={handleFileUpload} className="hidden" />
+                    <input type="file" accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={handleFileUpload} className="hidden" />
                   </label>
                 </div>
 
@@ -883,7 +998,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                     upload_file
                   </span>
                   <span className="text-xs font-semibold text-[#1B1C1A]">Upload Dataset</span>
-                  <input type="file" onChange={handleFileUpload} className="hidden" />
+                  <input type="file" accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={handleFileUpload} className="hidden" />
                 </label>
 
                 <button
@@ -1420,6 +1535,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
               <div className="border-2 border-dashed border-[#2C4D03]/30 hover:border-[#2C4D03] bg-[#F5F3EF]/50 hover:bg-[#F5F3EF] p-6 rounded-[18px] text-center space-y-3 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] relative cursor-pointer group">
                 <input
                   type="file"
+                  accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                   onChange={handleFileUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />

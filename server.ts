@@ -4,6 +4,7 @@ import net from "net";
 import dotenv from "dotenv";
 import multer from "multer";
 import XLSX from "xlsx";
+import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import { buildClimateForecastFromRows, buildTrainingPayloadFromRows } from "./forecast";
@@ -44,13 +45,32 @@ const upload = multer({
   },
 });
 
-const normalizeColumnName = (value: string) =>
+const supportedDatasetExtensions = new Set(["csv", "xls", "xlsx"]);
+
+const isSupportedDatasetFile = (fileName: string, mimeType?: string) => {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const normalizedMime = (mimeType || "").toLowerCase();
+
+  if (supportedDatasetExtensions.has(extension)) {
+    return true;
+  }
+
+  return [
+    "text/csv",
+    "application/csv",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/octet-stream",
+  ].includes(normalizedMime);
+};
+
+export const normalizeColumnName = (value: string) =>
   value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-const detectClimateColumnType = (columnName: string) => {
+export const detectClimateColumnType = (columnName: string) => {
   const normalized = normalizeColumnName(columnName);
 
   if (/(date|time|timestamp|datetime|day|month|year|period)/.test(normalized)) return "date";
@@ -64,15 +84,19 @@ const detectClimateColumnType = (columnName: string) => {
   return "other";
 };
 
-const parseDateValue = (value: unknown) => {
+export const parseDateValue = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
   const asDate = new Date(String(value));
   if (!Number.isNaN(asDate.getTime())) return asDate;
   return null;
 };
 
-const analyzeDatasetBuffer = (buffer: Buffer, fileName: string) => {
-  const workbook = XLSX.read(buffer, { type: "array" });
+export const analyzeDatasetBuffer = (buffer: Buffer, fileName: string) => {
+  if (!isSupportedDatasetFile(fileName)) {
+    throw new Error("Unsupported dataset format. Please upload a CSV (.csv), Excel (.xls), or Excel (.xlsx) file.");
+  }
+
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: false });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
@@ -232,8 +256,18 @@ app.post("/api/process-dataset", upload.single("file"), async (req: any, res) =>
       return res.status(400).json({ success: false, error: "No file uploaded." });
     }
 
+    const fileName = req.file.originalname || "uploaded-file";
+    const contentType = req.file.mimetype || "";
+
+    if (!isSupportedDatasetFile(fileName, contentType)) {
+      return res.status(400).json({
+        success: false,
+        error: "Unsupported dataset format. Please upload a CSV (.csv), Excel (.xls), or Excel (.xlsx) file.",
+      });
+    }
+
     const fileBuffer = req.file.buffer;
-    const dataset = analyzeDatasetBuffer(fileBuffer, req.file.originalname);
+    const dataset = analyzeDatasetBuffer(fileBuffer, fileName);
 
     return res.json({
       success: true,
@@ -392,4 +426,9 @@ async function startServer() {
   });
 }
 
-startServer();
+const isDirectExecution =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectExecution) {
+  void startServer();
+}

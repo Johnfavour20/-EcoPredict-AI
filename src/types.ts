@@ -9,7 +9,8 @@ export type PlatformTab =
   | 'evaluation' 
   | 'visualizations' 
   | 'reports'
-  | 'settings';
+  | 'settings'
+  | 'ai-analyst';
 
 export interface WestAfricaRegion {
   id: string;
@@ -39,6 +40,7 @@ export interface ModelPreset {
   name: string;
   algorithm: 'Linear Regression' | 'Artificial Neural Network (ANN)';
   r2: number; // Coefficient of Determination (0 to 1)
+  accuracy: number; // Model accuracy in percent
   mae: number; // Mean Absolute Error
   rmse: number; // Root Mean Squared Error
   status: 'Trained & Operational' | 'Training' | 'Idle';

@@ -35,6 +35,9 @@ interface DatasetOption {
   size: string;
   status: 'Verified' | 'Processing';
   outputName: string;
+  rows?: Array<Record<string, string>>;
+  columns?: string[];
+  climateColumns?: Array<{ name: string; type: string }>;
 }
 
 const DATASET_OPTIONS: DatasetOption[] = [
