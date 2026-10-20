@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { PlatformTab, WestAfricaRegion, ModelPreset } from '../types';
 import { WEST_AFRICA_REGIONS, HISTORICAL_CLIMATE_METRICS, MODEL_PRESETS } from '../data/mockData';
 import { DataPreprocessing } from './DataPreprocessing';
@@ -111,6 +112,85 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
   const [modalDescription, setModalDescription] = useState('');
   const [modalProgress, setModalProgress] = useState(75);
   const [modalFileName, setModalFileName] = useState('West_Africa_Rainfall_v2.csv');
+  const [modalDatasetSummary, setModalDatasetSummary] = useState<{
+    rowCount: number;
+    columns: string[];
+    fileSize: number;
+    extension: string;
+  } | null>(null);
+  const [modalPreviewRows, setModalPreviewRows] = useState<Array<Record<string, string>>>([]);
+  const [modalFullRows, setModalFullRows] = useState<Array<Record<string, string>>>([]);
+  const [modalClimateColumns, setModalClimateColumns] = useState<Array<{ name: string; type: string }>>([]);
+  const [modalValidation, setModalValidation] = useState<{
+    status: string;
+    missingTotal: number;
+    issues: string[];
+    dateRange: { earliest: string; latest: string } | null;
+    missingByColumn: Array<{ column: string; missing: number; missingRate: number }>;
+  } | null>(null);
+  const [uploadedDatasetForTraining, setUploadedDatasetForTraining] = useState<{
+    name: string;
+    region: string;
+    rows: Array<Record<string, string>>;
+    columns: string[];
+    climateColumns: Array<{ name: string; type: string }>;
+  } | null>(null);
+  const [processedDatasetForTraining, setProcessedDatasetForTraining] = useState<{
+    name: string;
+    region: string;
+    rows: Array<Record<string, string>>;
+    columns: string[];
+    climateColumns: Array<{ name: string; type: string }>;
+  } | null>(null);
+  const [trainingResult, setTrainingResult] = useState<{
+    datasetName: string;
+    region: string;
+    metrics: {
+      r2: number;
+      mae: number;
+      rmse: number;
+      confidence: number;
+    };
+    trainingId: string;
+    generatedAt: string;
+    summary: string;
+    model?: {
+      algorithm: string;
+      epochs: number;
+      learningRate: number;
+      hiddenLayers: string;
+      status: 'completed';
+    };
+  } | null>(null);
+
+  const formatRecordsLabel = (rowCount: number) => {
+    if (rowCount >= 1000000) return `${(rowCount / 1000000).toFixed(1)}M`;
+    if (rowCount >= 1000) return `${(rowCount / 1000).toFixed(1)}k`;
+    return `${rowCount}`;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const processDatasetWithBackend = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/process-dataset', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error || 'Failed to process dataset.');
+    }
+
+    return payload.dataset;
+  };
 
   // Animated progress bar effect inside modal
   useEffect(() => {
@@ -167,32 +247,93 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
     setTimeout(() => setExportToast(null), 3500);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       setModalFileName(file.name);
       setModalDatasetName(file.name.replace(/\.[^/.]+$/, ''));
+      setModalProgress(35);
+      setModalValidation(null);
+      setModalClimateColumns([]);
+      setModalPreviewRows([]);
+      setModalFullRows([]);
+
+      try {
+        const dataset = await processDatasetWithBackend(file);
+        setModalDatasetSummary({
+          rowCount: dataset.rowCount,
+          columns: dataset.columns,
+          fileSize: file.size,
+          extension: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+        });
+        setModalPreviewRows(dataset.previewRows || []);
+        setModalFullRows(dataset.rows || dataset.previewRows || []);
+        setModalClimateColumns(dataset.climateColumns || []);
+        setModalValidation(dataset.validation || null);
+        setUploadedDatasetForTraining({
+          name: file.name.replace(/\.[^/.]+$/, '') || 'Uploaded Dataset',
+          region: modalRegion || 'West Africa',
+          rows: dataset.rows || dataset.previewRows || [],
+          columns: dataset.columns || [],
+          climateColumns: dataset.climateColumns || [],
+        });
+        setModalProgress(100);
+      } catch (error) {
+        console.error('Failed to parse uploaded file:', error);
+        setModalDatasetSummary({
+          rowCount: 0,
+          columns: [],
+          fileSize: file.size,
+          extension: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+        });
+        setModalValidation({
+          status: 'warning',
+          missingTotal: 0,
+          issues: [error instanceof Error ? error.message : 'Failed to process dataset.'],
+          dateRange: null,
+          missingByColumn: [],
+        });
+        setModalProgress(100);
+      }
+
       setIsUploadModalOpen(true);
     }
   };
 
   const handleConfirmUpload = () => {
+    const rowCount = modalDatasetSummary?.rowCount ?? 0;
+    const recordsLabel = formatRecordsLabel(rowCount);
+    const fileFormat = modalDatasetSummary?.extension || (modalFileName.endsWith('.nc') ? 'NetCDF' : modalFileName.endsWith('.tiff') ? 'TIFF' : 'CSV');
+    const fileSize = modalDatasetSummary?.fileSize ? formatFileSize(modalDatasetSummary.fileSize) : '0 B';
+
+    const datasetName = modalDatasetName || 'Uploaded Dataset';
     const newDs: DatasetItem = {
       id: `ds-${Date.now()}`,
-      name: modalDatasetName || 'Uploaded Dataset',
+      name: datasetName,
       region: modalRegion,
-      records: `${Math.floor(Math.random() * 500 + 100)}k`,
+      records: recordsLabel,
       uploadDate: 'Just now',
       status: 'Verified',
-      format: modalFileName.endsWith('.nc') ? 'NetCDF' : modalFileName.endsWith('.tiff') ? 'TIFF' : 'CSV',
-      size: `${(Math.random() * 80 + 10).toFixed(1)} MB`,
+      format: fileFormat,
+      size: fileSize,
       icon: 'cloud_done',
       iconColor: 'text-[#2C4D03]',
       iconBg: 'bg-[#B8ECC2]/30',
     };
+
+    const preparedDataset = {
+      name: datasetName,
+      region: modalRegion,
+      rows: modalFullRows.length ? modalFullRows : modalPreviewRows,
+      columns: modalDatasetSummary?.columns ?? [],
+      climateColumns: modalClimateColumns,
+    };
+
+    setUploadedDatasetForTraining(preparedDataset);
+    setProcessedDatasetForTraining(preparedDataset);
     setDatasets([newDs, ...datasets]);
     setIsUploadModalOpen(false);
-    triggerToast(`Dataset "${newDs.name}" uploaded successfully!`);
+    triggerToast(`Dataset "${newDs.name}" uploaded and parsed successfully (${rowCount.toLocaleString()} rows).`);
   };
 
   const handleDeleteDataset = (id: string, name: string) => {
@@ -212,9 +353,9 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
     <div className="min-h-screen bg-[#FBF9F5] text-[#1B1C1A] flex font-sans overflow-x-hidden selection:bg-[#43651C] selection:text-white">
       {/* Notification Toast */}
       {exportToast && (
-        <div className="fixed top-20 right-6 z-50 bg-[#2C4D03] text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-[#43651C] animate-fadeIn">
+        <div className="fixed top-20 right-6 z-50 bg-[#2C4D03] text-white px-5 py-3 rounded-[18px] shadow-[0_18px_32px_rgba(20,33,18,0.12)] flex items-center gap-3 border border-[#43651C] animate-fadeIn">
           <span className="material-symbols-outlined text-[#B8ECC2]">check_circle</span>
-          <div className="text-xs font-bold">{exportToast}</div>
+          <div className="text-xs font-semibold">{exportToast}</div>
         </div>
       )}
 
@@ -228,15 +369,13 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
         <div className={`mb-8 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between px-2'}`}>
           {!isSidebarCollapsed ? (
             <div className="flex items-center gap-2 overflow-hidden">
-              <span className="material-symbols-outlined text-[#2C4D03] text-2xl font-bold shrink-0">eco</span>
-              <div>
-                <h1 className="text-lg font-bold text-[#2C4D03] leading-tight whitespace-nowrap">EcoPredict AI</h1>
-                <p className="text-[10px] font-medium text-[#43493C]/70 whitespace-nowrap">Climate Research Platform</p>
+              <div className="w-6 h-6 rounded-[6px] bg-[#2C4D03]/10 flex items-center justify-center shrink-0" title="EcoPredict AI">
+                <span className="material-symbols-outlined text-[#2C4D03] text-[14px] leading-none">eco</span>
               </div>
             </div>
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-[#2C4D03]/10 flex items-center justify-center shrink-0" title="EcoPredict AI">
-              <span className="material-symbols-outlined text-[#2C4D03] text-2xl font-bold">eco</span>
+            <div className="w-6 h-6 rounded-[6px] bg-[#2C4D03]/10 flex items-center justify-center shrink-0" title="EcoPredict AI">
+              <span className="material-symbols-outlined text-[#2C4D03] text-[14px] leading-none">eco</span>
             </div>
           )}
 
@@ -256,15 +395,15 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
           <button
             onClick={() => setActiveTab('dashboard')}
             title={isSidebarCollapsed ? 'Dashboard' : undefined}
-            className={`w-full flex items-center gap-3 py-2 rounded-lg transition-all cursor-pointer ${
+            className={`w-full flex items-center gap-3 py-2.5 rounded-[14px] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] cursor-pointer ${
               isSidebarCollapsed ? 'justify-center px-0' : 'px-3'
             } ${
               activeTab === 'dashboard'
-                ? 'bg-[#43651C] text-[#B8E189] font-bold shadow-xs'
-                : 'text-[#43493C] hover:bg-[#F5F3EF]'
+                ? 'bg-[#43651C] text-[#B8E189] font-semibold shadow-[0_8px_18px_rgba(38,66,19,0.15)]'
+                : 'text-[#43493C] hover:bg-[#F5F3EF] hover:text-[#2C4D03]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">dashboard</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">dashboard</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Dashboard</span>}
           </button>
 
@@ -280,7 +419,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">folder_open</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">folder_open</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Dataset Management</span>}
           </button>
 
@@ -296,7 +435,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">memory</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">memory</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Data Preprocessing</span>}
           </button>
 
@@ -312,7 +451,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">psychology</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">psychology</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Model Training</span>}
           </button>
 
@@ -328,7 +467,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">batch_prediction</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">batch_prediction</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Climate Prediction</span>}
           </button>
 
@@ -344,7 +483,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">assessment</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">assessment</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Model Evaluation</span>}
           </button>
 
@@ -360,7 +499,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">insights</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">insights</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Visualizations</span>}
           </button>
 
@@ -376,7 +515,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">description</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">description</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Reports</span>}
           </button>
 
@@ -392,7 +531,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 : 'text-[#43493C] hover:bg-[#F5F3EF]'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">settings</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">settings</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Settings</span>}
           </button>
         </nav>
@@ -406,7 +545,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
               isSidebarCollapsed ? 'justify-center px-0' : 'px-4'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">help</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">help</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Help Center</span>}
           </button>
 
@@ -417,7 +556,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
               isSidebarCollapsed ? 'justify-center px-0' : 'px-4'
             }`}
           >
-            <span className="material-symbols-outlined text-lg shrink-0">logout</span>
+            <span className="material-symbols-outlined text-[14px] shrink-0 leading-none">logout</span>
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Log Out</span>}
           </button>
         </div>
@@ -464,22 +603,21 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search models or datasets..."
-                className="pl-10 pr-4 py-1.5 bg-[#F5F3EF] border border-[#E8E3DA] rounded-full text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03] focus:outline-none w-64 transition-all group-hover:border-[#74796A]"
+                className="pl-10 pr-4 py-1.5 bg-[#F5F3EF] border border-[#E8E3DA] rounded-full text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03]/20 focus:outline-none w-64 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:border-[#C4C9B8]"
               />
             </div>
 
-            {/* Notifications Button */}
             <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 text-[#43493C] hover:bg-[#EFEEEA] transition-colors rounded-full relative cursor-pointer"
+                className="p-2 text-[#43493C] hover:bg-[#EFEEEA] transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-full relative cursor-pointer"
               >
                 <span className="material-symbols-outlined text-xl">notifications</span>
                 <span className="absolute top-2 right-2 w-2 h-2 bg-[#BA1A1A] rounded-full"></span>
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-[#E8E3DA] p-3 text-xs z-50 space-y-2 animate-fadeIn">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-[18px] shadow-[0_18px_32px_rgba(20,33,18,0.12)] border border-[#E8E3DA] p-3 text-xs z-50 space-y-2 animate-fadeIn">
                   <div className="font-bold text-[#2C4D03] pb-1 border-b border-[#E8E3DA]">
                     Notifications
                   </div>
@@ -512,13 +650,13 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
           {activeTab === 'dashboard' && (
             <>
               {/* Welcome Banner */}
-              <section className="relative overflow-hidden rounded-xl bg-[#2C4D03] text-white p-8 flex flex-col md:flex-row justify-between items-center shadow-sm">
+              <section className="relative overflow-hidden rounded-[24px] bg-[#2C4D03] text-white p-8 flex flex-col md:flex-row justify-between items-center shadow-[0_18px_32px_rgba(20,33,18,0.08)]">
                 <div className="relative z-10 max-w-2xl">
-                  <h2 className="text-3xl font-bold mb-2">Welcome Back, Dr. Arisaka</h2>
+                  <h2 className="text-3xl font-semibold mb-2 tracking-[-0.04em]">Welcome back, Dr. Deborah</h2>
                   <p className="text-base opacity-90 mb-6 leading-relaxed">
-                    Monitor regional anomalies, refine predictive climate models, and export high-fidelity research reports for West African policy makers.
+                    Monitor regional anomalies, refine predictive climate models, and export research reports for West African policy makers.
                   </p>
-                  <label className="bg-[#C6F096] hover:bg-[#B8E189] text-[#0F2000] px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all active:scale-95 cursor-pointer inline-flex text-xs">
+                  <label className="bg-[#C6F096] hover:bg-[#B8E189] text-[#0F2000] px-6 py-3 rounded-[14px] font-semibold flex items-center gap-2 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer inline-flex text-xs">
                     <span className="material-symbols-outlined text-lg">upload_file</span>
                     <span>Upload Dataset</span>
                     <input type="file" onChange={handleFileUpload} className="hidden" />
@@ -537,10 +675,10 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
               {/* KPI Cards Grid */}
               <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Card 1 */}
-                <div className="bg-white border border-[#E8E3DA] p-6 rounded-xl flex flex-col justify-between shadow-xs">
+                <div className="bg-white border border-[#E8E3DA] p-6 rounded-[20px] flex flex-col justify-between shadow-[0_10px_22px_rgba(20,33,18,0.04)] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(20,33,18,0.08)]">
                   <div className="flex justify-between items-start">
                     <span className="text-[#43493C] font-semibold text-xs">Total Datasets</span>
-                    <span className="material-symbols-outlined text-[#2C4D03] bg-[#C6F096]/30 p-2 rounded-lg">
+                    <span className="material-symbols-outlined text-[#2C4D03] bg-[#C6F096]/30 p-2 rounded-[12px]">
                       storage
                     </span>
                   </div>
@@ -740,11 +878,11 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
 
               {/* Quick Actions Grid */}
               <section className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <label className="group flex flex-col items-center justify-center p-6 bg-white border border-[#E8E3DA] rounded-xl hover:border-[#2C4D03] hover:shadow-sm transition-all cursor-pointer">
-                  <span className="material-symbols-outlined text-3xl text-[#2C4D03] mb-3 group-hover:scale-110 transition-transform">
+                <label className="group flex flex-col items-center justify-center p-6 bg-white border border-[#E8E3DA] rounded-[20px] hover:border-[#2C4D03] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(20,33,18,0.06)] cursor-pointer">
+                  <span className="material-symbols-outlined text-3xl text-[#2C4D03] mb-3 group-hover:scale-[1.03] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]">
                     upload_file
                   </span>
-                  <span className="text-xs font-bold text-[#1B1C1A]">Upload Dataset</span>
+                  <span className="text-xs font-semibold text-[#1B1C1A]">Upload Dataset</span>
                   <input type="file" onChange={handleFileUpload} className="hidden" />
                 </label>
 
@@ -753,12 +891,12 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                     setActiveTab('preprocessing');
                     triggerToast('Switched to Preprocessing Pipeline');
                   }}
-                  className="group flex flex-col items-center justify-center p-6 bg-white border border-[#E8E3DA] rounded-xl hover:border-[#2C4D03] hover:shadow-sm transition-all cursor-pointer"
+                  className="group flex flex-col items-center justify-center p-6 bg-white border border-[#E8E3DA] rounded-[20px] hover:border-[#2C4D03] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(20,33,18,0.06)] cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-3xl text-[#2C4D03] mb-3 group-hover:scale-110 transition-transform">
+                  <span className="material-symbols-outlined text-3xl text-[#2C4D03] mb-3 group-hover:scale-[1.03] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]">
                     auto_fix_high
                   </span>
-                  <span className="text-xs font-bold text-[#1B1C1A]">Preprocessing</span>
+                  <span className="text-xs font-semibold text-[#1B1C1A]">Preprocessing</span>
                 </button>
 
                 <button
@@ -1151,6 +1289,8 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
             <DataPreprocessing
               onNavigateToModels={() => setActiveTab('models')}
               triggerToast={triggerToast}
+              uploadedDataset={processedDatasetForTraining ?? uploadedDatasetForTraining}
+              onDatasetProcessed={setProcessedDatasetForTraining}
             />
           )}
 
@@ -1159,6 +1299,8 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
             <ModelTraining
               onNavigateToPrediction={() => setActiveTab('prediction')}
               triggerToast={triggerToast}
+              uploadedDataset={processedDatasetForTraining ?? uploadedDatasetForTraining}
+              onTrainingComplete={setTrainingResult}
             />
           )}
 
@@ -1167,6 +1309,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
             <ClimatePrediction
               onNavigateToEvaluation={() => setActiveTab('evaluation')}
               triggerToast={triggerToast}
+              uploadedDataset={uploadedDatasetForTraining}
             />
           )}
 
@@ -1175,6 +1318,8 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
             <ModelEvaluation
               onNavigateToVisualizations={() => setActiveTab('visualizations')}
               triggerToast={triggerToast}
+              uploadedDataset={processedDatasetForTraining ?? uploadedDatasetForTraining}
+              trainingResult={trainingResult}
             />
           )}
 
@@ -1198,13 +1343,13 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
 
           {/* TAB 5: AI ANALYST / SETTINGS */}
           {activeTab === 'ai-analyst' && (
-            <div className="p-6 bg-white rounded-xl border border-[#E8E3DA] shadow-xs space-y-6">
+            <div className="p-6 bg-white rounded-[22px] border border-[#E8E3DA] shadow-[0_10px_22px_rgba(20,33,18,0.04)] space-y-6">
               <div className="pb-4 border-b border-[#E8E3DA]">
-                <h3 className="text-xl font-bold text-[#2C4D03] flex items-center gap-2">
+                <h3 className="text-xl font-semibold tracking-[-0.03em] text-[#2C4D03] flex items-center gap-2">
                   <span className="material-symbols-outlined text-2xl">auto_awesome</span>
-                  <span>Gemini Climate Science Analyst</span>
+                  <span>Gemini climate science analyst</span>
                 </h3>
-                <p className="text-xs text-[#43493C]">
+                <p className="text-xs text-[#43493C] mt-2 leading-5">
                   Generate automated executive policy briefs and scientific summaries using Gemini 2.5 server-side AI.
                 </p>
               </div>
@@ -1216,23 +1361,23 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                     rows={3}
                     value={userQuery}
                     onChange={(e) => setUserQuery(e.target.value)}
-                    className="w-full p-3 bg-[#F5F3EF] border border-[#E8E3DA] rounded-xl text-xs text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03]"
+                    className="w-full p-3 bg-[#F5F3EF] border border-[#E8E3DA] rounded-[16px] text-xs text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03]/20"
                   />
                 </div>
 
                 <button
                   onClick={handleRunAiAnalysis}
                   disabled={aiLoading}
-                  className="px-6 py-3 bg-[#2C4D03] hover:bg-[#43651C] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3 bg-[#2C4D03] hover:bg-[#43651C] text-white text-xs font-semibold rounded-[14px] shadow-[0_10px_20px_rgba(42,74,27,0.12)] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base">psychology</span>
-                  <span>{aiLoading ? 'Analyzing Climate Data...' : 'Run Gemini Analysis'}</span>
+                  <span>{aiLoading ? 'Analyzing climate data...' : 'Run Gemini analysis'}</span>
                 </button>
 
                 {aiReport && (
-                  <div className="p-6 bg-[#FBF9F5] border border-[#E8E3DA] rounded-xl text-xs space-y-3">
+                  <div className="p-6 bg-[#FBF9F5] border border-[#E8E3DA] rounded-[18px] text-xs space-y-3">
                     <div className="font-bold text-[#2C4D03] text-sm pb-2 border-b border-[#E8E3DA]">
-                      Executive Scientific Brief
+                      Executive scientific brief
                     </div>
                     <div className="whitespace-pre-line text-[#1B1C1A] leading-relaxed">{aiReport}</div>
                   </div>
@@ -1260,60 +1405,142 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
       {/* Upload New Dataset Modal Overlay */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1B1C1A]/40 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden border border-[#E8E3DA] flex flex-col">
-            {/* Modal Header */}
+          <div className="bg-white w-full max-w-4xl rounded-[24px] shadow-[0_30px_60px_rgba(20,33,18,0.18)] overflow-hidden border border-[#E8E3DA] flex flex-col">
             <div className="px-6 py-4 border-b border-[#E8E3DA] flex items-center justify-between bg-[#F5F3EF]">
-              <h3 className="text-base font-bold text-[#1B1C1A]">Upload New Dataset</h3>
+              <h3 className="text-base font-semibold text-[#1B1C1A]">Upload new dataset</h3>
               <button
                 onClick={() => setIsUploadModalOpen(false)}
-                className="text-[#74796A] hover:text-[#1B1C1A] p-1 rounded-lg hover:bg-[#E8E3DA] transition-colors cursor-pointer"
+                className="text-[#74796A] hover:text-[#1B1C1A] p-1 rounded-[10px] hover:bg-[#E8E3DA] transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] cursor-pointer"
               >
                 <span className="material-symbols-outlined text-xl">close</span>
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
-              {/* Drag and Drop File Upload Area */}
-              <div className="border-2 border-dashed border-[#2C4D03]/30 hover:border-[#2C4D03] bg-[#F5F3EF]/50 hover:bg-[#F5F3EF] p-6 rounded-xl text-center space-y-3 transition-colors relative cursor-pointer group">
+              <div className="border-2 border-dashed border-[#2C4D03]/30 hover:border-[#2C4D03] bg-[#F5F3EF]/50 hover:bg-[#F5F3EF] p-6 rounded-[18px] text-center space-y-3 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] relative cursor-pointer group">
                 <input
                   type="file"
                   onChange={handleFileUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                <div className="w-12 h-12 bg-[#B8ECC2]/30 text-[#2C4D03] rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 bg-[#B8ECC2]/30 text-[#2C4D03] rounded-full flex items-center justify-center mx-auto group-hover:scale-[1.03] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]">
                   <span className="material-symbols-outlined text-2xl">cloud_upload</span>
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-[#1B1C1A]">
-                    Drag and drop your CSV or NetCDF files here
+                  <div className="text-xs font-semibold text-[#1B1C1A]">
+                    Drag and drop your climate CSV or Excel file here
                   </div>
                   <div className="text-[11px] text-[#43493C] mt-1">
                     or <span className="text-[#2C4D03] font-semibold underline">browse files</span> from your computer
                   </div>
                 </div>
-                <div className="text-[10px] text-[#74796A]">Supports .csv, .nc, .tiff, .geojson up to 2GB</div>
+                <div className="text-[10px] text-[#74796A]">Supports .xlsx, .xls, .csv up to 25MB</div>
               </div>
 
-              {/* Dataset Name */}
               <div>
-                <label className="block text-xs font-bold text-[#1B1C1A] mb-1.5">Dataset Name</label>
+                <label className="block text-xs font-bold text-[#1B1C1A] mb-1.5">Dataset name</label>
                 <input
                   type="text"
                   value={modalDatasetName}
                   onChange={(e) => setModalDatasetName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] rounded-lg text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03] focus:outline-none"
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] rounded-[12px] text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03]/20 focus:outline-none"
                   placeholder="e.g. West_Africa_Rainfall_v2"
                 />
               </div>
 
-              {/* Region Selection */}
+              {modalDatasetSummary && (
+                <div className="bg-[#F5F3EF] border border-[#E8E3DA] rounded-[16px] p-4 space-y-3">
+                  <div className="flex items-center justify-between text-[11px] text-[#43493C]">
+                    <span className="font-bold uppercase tracking-[0.12em]">Parsed result</span>
+                    <span className="font-semibold text-[#2C4D03]">{modalDatasetSummary.rowCount.toLocaleString()} rows</span>
+                  </div>
+
+                  {modalClimateColumns.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#43493C]">Detected climate fields</div>
+                      <div className="flex flex-wrap gap-2">
+                        {modalClimateColumns.map((column) => (
+                          <span
+                            key={`${column.name}-${column.type}`}
+                            className="px-2 py-1 rounded-full bg-white border border-[#E8E3DA] text-[10px] text-[#1B1C1A] font-medium"
+                          >
+                            {column.name} · {column.type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
+                    <div className="rounded-[12px] bg-white border border-[#E8E3DA] p-3">
+                      <div className="text-[#43493C] uppercase tracking-[0.12em] font-bold">Missing</div>
+                      <div className="mt-1 text-base font-semibold text-[#1B1C1A]">{modalValidation?.missingTotal ?? 0}</div>
+                    </div>
+                    <div className="rounded-[12px] bg-white border border-[#E8E3DA] p-3">
+                      <div className="text-[#43493C] uppercase tracking-[0.12em] font-bold">Coverage</div>
+                      <div className="mt-1 text-base font-semibold text-[#1B1C1A]">{modalDatasetSummary.rowCount ? 'Complete' : 'Empty'}</div>
+                    </div>
+                    <div className="rounded-[12px] bg-white border border-[#E8E3DA] p-3">
+                      <div className="text-[#43493C] uppercase tracking-[0.12em] font-bold">Date range</div>
+                      <div className="mt-1 text-[10px] font-semibold text-[#1B1C1A]">
+                        {modalValidation?.dateRange ? `${modalValidation.dateRange.earliest.slice(0, 10)} → ${modalValidation.dateRange.latest.slice(0, 10)}` : 'Not detected'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {modalValidation?.issues?.length ? (
+                    <div className="rounded-[12px] bg-white border border-[#E8E3DA] p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#43493C] mb-2">Validation</div>
+                      <ul className="space-y-1 text-[10px] text-[#43493C]">
+                        {modalValidation.issues.map((issue, index) => (
+                          <li key={`${issue}-${index}`} className="flex gap-2">
+                            <span className="mt-0.5 text-[#2C4D03]">•</span>
+                            <span>{issue}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {modalPreviewRows.length > 0 && (
+                    <div className="rounded-[12px] bg-white border border-[#E8E3DA] overflow-hidden">
+                      <div className="flex items-center justify-between bg-[#F5F3EF] border-b border-[#E8E3DA] px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#43493C]">Preview</span>
+                        <span className="text-[10px] text-[#43493C]">First {modalPreviewRows.length} rows</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left text-[10px]">
+                          <thead className="bg-[#F5F3EF] text-[#43493C]">
+                            <tr>
+                              {Object.keys(modalPreviewRows[0]).map((header) => (
+                                <th key={header} className="px-3 py-2 font-bold whitespace-nowrap">{header}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modalPreviewRows.map((row, rowIndex) => (
+                              <tr key={`${rowIndex}-${Object.values(row).join('-')}`} className="border-t border-[#E8E3DA]">
+                                {Object.values(row).map((value, valueIndex) => (
+                                  <td key={`${rowIndex}-${valueIndex}`} className="px-3 py-2 whitespace-nowrap text-[#1B1C1A]">
+                                    {value || '—'}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-[#1B1C1A] mb-1.5">Region</label>
                 <select
                   value={modalRegion}
                   onChange={(e) => setModalRegion(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] rounded-lg text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03] focus:outline-none cursor-pointer"
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] rounded-[12px] text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03]/20 focus:outline-none cursor-pointer"
                 >
                   <option>West Africa</option>
                   <option>East Africa</option>
@@ -1325,20 +1552,18 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
                 </select>
               </div>
 
-              {/* Description (Optional) */}
               <div>
-                <label className="block text-xs font-bold text-[#1B1C1A] mb-1.5">Description (Optional)</label>
+                <label className="block text-xs font-bold text-[#1B1C1A] mb-1.5">Description (optional)</label>
                 <textarea
                   rows={3}
                   value={modalDescription}
                   onChange={(e) => setModalDescription(e.target.value)}
                   placeholder="Describe the source and intent of this data..."
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] rounded-lg text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03] focus:outline-none"
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] rounded-[12px] text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03]/20 focus:outline-none"
                 ></textarea>
               </div>
 
-              {/* Progress Bar */}
-              <div className="bg-[#F5F3EF] p-4 rounded-xl space-y-2 border border-[#E8E3DA]">
+              <div className="bg-[#F5F3EF] p-4 rounded-[16px] space-y-2 border border-[#E8E3DA]">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-[#1B1C1A] truncate max-w-[280px]">
                     Uploading {modalFileName}
@@ -1354,17 +1579,16 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-[#E8E3DA] bg-[#F5F3EF] flex justify-end gap-3">
               <button
                 onClick={() => setIsUploadModalOpen(false)}
-                className="px-4 py-2 border border-[#E8E3DA] bg-white rounded-lg text-xs font-bold text-[#43493C] hover:bg-[#E8E3DA] transition-colors cursor-pointer"
+                className="px-4 py-2 border border-[#E8E3DA] bg-white rounded-[12px] text-xs font-semibold text-[#43493C] hover:bg-[#E8E3DA] transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmUpload}
-                className="flex items-center gap-2 px-5 py-2 bg-[#2C4D03] text-white rounded-lg text-xs font-bold hover:bg-[#43651C] transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2 bg-[#2C4D03] text-white rounded-[12px] text-xs font-semibold hover:bg-[#43651C] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-base">cloud_upload</span>
                 <span>Upload</span>

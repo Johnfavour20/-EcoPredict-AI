@@ -3,20 +3,69 @@ import React, { useState } from 'react';
 interface ModelEvaluationProps {
   onNavigateToVisualizations: () => void;
   triggerToast: (msg: string) => void;
+  uploadedDataset?: {
+    name: string;
+    region: string;
+    rows: Array<Record<string, string>>;
+    columns: string[];
+    climateColumns: Array<{ name: string; type: string }>;
+  } | null;
+  trainingResult?: {
+    datasetName: string;
+    region: string;
+    metrics: {
+      r2: number;
+      mae: number;
+      rmse: number;
+      confidence: number;
+    };
+    trainingId: string;
+    generatedAt: string;
+    summary: string;
+    model?: {
+      algorithm: string;
+      epochs: number;
+      learningRate: number;
+      hiddenLayers: string;
+      status: 'completed';
+    };
+  } | null;
 }
 
 export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
   onNavigateToVisualizations,
   triggerToast,
+  uploadedDataset,
+  trainingResult,
 }) => {
   const [selectedModel, setSelectedModel] = useState<'ANN' | 'Linear Reg.'>('ANN');
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
 
-  // Dynamic evaluation metrics based on model selection
+  const datasetLabel = trainingResult?.datasetName || uploadedDataset?.name || 'West Africa Climate v4';
+  const regionLabel = trainingResult?.region || uploadedDataset?.region || 'West Africa';
+  const resolvedMetrics = trainingResult?.metrics
+    ? {
+        mae: trainingResult.metrics.mae.toFixed(2),
+        rmse: trainingResult.metrics.rmse.toFixed(2),
+        r2: trainingResult.metrics.r2.toFixed(3),
+        confidence: trainingResult.metrics.confidence.toFixed(1),
+      }
+    : { mae: '0.12', rmse: '0.18', r2: '0.984', confidence: '96.0' };
+
   const metrics =
     selectedModel === 'ANN'
-      ? { mae: '0.12', rmse: '0.18', r2: '0.984', status: 'High' }
-      : { mae: '0.25', rmse: '0.32', r2: '0.912', status: 'Moderate' };
+      ? {
+          mae: resolvedMetrics.mae,
+          rmse: resolvedMetrics.rmse,
+          r2: resolvedMetrics.r2,
+          status: Number(resolvedMetrics.r2) >= 0.9 ? 'High' : 'Moderate',
+        }
+      : {
+          mae: (Number(resolvedMetrics.mae) + 0.13).toFixed(2),
+          rmse: (Number(resolvedMetrics.rmse) + 0.15).toFixed(2),
+          r2: (Number(resolvedMetrics.r2) - 0.06).toFixed(3),
+          status: 'Moderate',
+        };
 
   const handleGenerateReport = () => {
     triggerToast('Evaluation report PDF compiled and downloading...');
@@ -29,31 +78,31 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* 1. Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 bg-white p-6 rounded-xl border border-[#E8E3DA] shadow-xs">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 bg-white p-6 rounded-[22px] border border-[#E8E3DA] shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[#2C4D03] mb-1">
             <span className="material-symbols-outlined text-lg">rule</span>
-            <span className="text-xs font-bold tracking-wider uppercase">Validation Framework</span>
+            <span className="text-[11px] font-semibold tracking-[0.18em] uppercase">Validation Framework</span>
           </div>
-          <h1 className="text-2xl font-bold text-[#1B1C1A]">Model Evaluation</h1>
-          <p className="text-xs text-[#43493C] max-w-3xl">
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[#1B1C1A]">Model evaluation</h1>
+          <p className="text-sm text-[#43493C] max-w-3xl leading-6">
             Evaluate and compare the performance of trained climate prediction models using standard regression evaluation metrics.
           </p>
         </div>
 
         <button
           onClick={handleGenerateReport}
-          className="bg-[#2C4D03] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm hover:bg-[#43651C] active:scale-95 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+          className="bg-[#2C4D03] text-white px-5 py-2.5 rounded-[14px] font-semibold text-xs shadow-[0_10px_20px_rgba(42,74,27,0.12)] hover:bg-[#43651C] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 shrink-0 cursor-pointer"
         >
           <span className="material-symbols-outlined text-base">summarize</span>
-          <span>Generate Evaluation Report</span>
+          <span>Generate evaluation report</span>
         </button>
       </div>
 
       {/* 2. Bento Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Section 1: Selected Model Summary Banner (Full width / 12 cols) */}
-        <section className="lg:col-span-12 bg-white/80 backdrop-blur-md rounded-xl p-6 border border-[#E8E3DA] shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
+        <section className="lg:col-span-12 bg-white/80 backdrop-blur-md rounded-[20px] p-6 border border-[#E8E3DA] shadow-[0_10px_22px_rgba(20,33,18,0.04)] flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-[#B8ECC2] flex items-center justify-center text-[#3D6C4B] shrink-0">
               <span className="material-symbols-outlined text-2xl">model_training</span>
@@ -80,19 +129,19 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
               <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider block">
                 Dataset
               </span>
-              <p className="font-semibold text-[#1B1C1A]">West Africa Climate v4</p>
+              <p className="font-semibold text-[#1B1C1A]">{datasetLabel}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider block">
-                Training Date
+                Region
               </span>
-              <p className="font-semibold text-[#1B1C1A]">Oct 12, 2026</p>
+              <p className="font-semibold text-[#1B1C1A]">{regionLabel}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider block">
                 Prediction Date
               </span>
-              <p className="font-semibold text-[#1B1C1A]">Oct 15, 2026</p>
+              <p className="font-semibold text-[#1B1C1A]">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
             </div>
           </div>
         </section>
@@ -339,7 +388,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
                   Best Performing Model
                 </span>
                 <span className="text-sm font-bold text-[#C6F096]">
-                  Artificial Neural Network (ANN)
+                  {selectedModel === 'ANN' ? 'Artificial Neural Network (ANN)' : 'Multivariate Linear Regression'}
                 </span>
               </div>
 
@@ -348,7 +397,9 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
                   Key Findings
                 </span>
                 <p className="text-[#F2F0ED]/90 leading-relaxed text-[11px]">
-                  The ANN model demonstrates superior non-linear pattern recognition for rainfall variability compared to standard regression baselines across West African sub-zones.
+                  {selectedModel === 'ANN'
+                    ? `The ANN model demonstrates superior non-linear pattern recognition for ${regionLabel.toLowerCase()} climate variability using the uploaded dataset ${datasetLabel}.`
+                    : `The linear benchmark remains a reliable baseline for ${regionLabel}, but it underperforms the ANN configuration on the uploaded dataset ${datasetLabel}.`}
                 </p>
               </div>
 
@@ -364,7 +415,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
                   <span className="text-[10px] font-bold text-[#B8ECC2] uppercase block mb-0.5 flex items-center gap-1">
                     <span className="material-symbols-outlined text-xs">check_circle</span> Recommendation
                   </span>
-                  <p className="font-semibold text-white">Primary usage in Sahel region.</p>
+                  <p className="font-semibold text-white">Primary usage in {regionLabel}.</p>
                 </div>
               </div>
             </div>

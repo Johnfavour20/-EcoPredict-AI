@@ -141,7 +141,7 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
         <div>
           <div className="flex items-center gap-2 text-[#2C4D03] mb-1">
             <span className="material-symbols-outlined text-lg">description</span>
-            <span className="text-xs font-bold tracking-wider uppercase">Scientific Reporting Portal</span>
+            <span className="text-[11px] font-bold tracking-[0.12em] uppercase">Scientific Reporting Portal</span>
           </div>
           <h1 className="text-3xl font-bold text-[#1B1C1A]">Reports</h1>
           <p className="text-sm text-[#43493C] mt-1 max-w-2xl">
@@ -152,63 +152,63 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
         <button
           onClick={handleGenerateReport}
           disabled={isGenerating}
-          className="bg-[#2C4D03] text-white font-bold text-xs px-5 py-3 rounded-xl hover:bg-[#43651C] active:scale-95 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 disabled:opacity-50"
+          className="bg-[#2C4D03] text-white font-semibold text-xs px-5 py-3 rounded-[14px] hover:bg-[#43651C] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 shadow-[0_8px_18px_rgba(42,74,27,0.12)] flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-base">
             {isGenerating ? 'sync' : 'summarize'}
           </span>
-          <span>{isGenerating ? 'Generating Report...' : 'Generate Report'}</span>
+          <span>{isGenerating ? 'Generating report...' : 'Generate report'}</span>
         </button>
       </div>
 
       {/* 2. KPI Summary Grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Total Reports</span>
-            <span className="material-symbols-outlined text-[#2C4D03] text-xl">library_books</span>
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Total Reports</span>
+            <span className="material-symbols-outlined text-[#2C4D03] text-[18px]">library_books</span>
           </div>
-          <div className="text-2xl font-extrabold text-[#1B1C1A]">{reportHistory.length + 19}</div>
-          <div className="text-xs text-[#396847] font-semibold mt-1 flex items-center gap-1">
-            <span className="material-symbols-outlined text-sm">trending_up</span>
+          <div className="text-[17px] font-extrabold tracking-[-0.04em] text-[#1B1C1A] leading-none">{reportHistory.length + 19}</div>
+          <div className="text-[11px] text-[#396847] font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">trending_up</span>
             <span>+3 generated this month</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Latest Report</span>
-            <span className="material-symbols-outlined text-[#2C4D03] text-xl">calendar_today</span>
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Latest Report</span>
+            <span className="material-symbols-outlined text-[#2C4D03] text-[18px]">calendar_today</span>
           </div>
-          <div className="text-lg font-bold text-[#1B1C1A]">{reportHistory[0]?.date || 'Oct 15, 2023'}</div>
-          <div className="text-xs text-[#74796A] mt-1 flex items-center gap-1">
-            <span className="material-symbols-outlined text-sm">history</span>
+          <div className="text-[15px] font-bold text-[#1B1C1A] leading-none">{reportHistory[0]?.date || 'Oct 15, 2023'}</div>
+          <div className="text-[11px] text-[#74796A] flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">history</span>
             <span>Recently updated</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Active Dataset</span>
-            <span className="material-symbols-outlined text-[#2C4D03] text-xl">travel_explore</span>
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Active Dataset</span>
+            <span className="material-symbols-outlined text-[#2C4D03] text-[18px]">travel_explore</span>
           </div>
-          <div className="text-lg font-bold text-[#1B1C1A] truncate" title={selectedDataset}>
+          <div className="text-[15px] font-bold text-[#1B1C1A] truncate leading-none" title={selectedDataset}>
             {selectedDataset}
           </div>
-          <div className="text-xs text-[#3D6C4B] mt-1 flex items-center gap-1 font-semibold">
+          <div className="text-[11px] text-[#3D6C4B] flex items-center gap-1 font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#B8ECC2] border border-[#396847]"></span>
             <span>Verified Synced</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Selected Model</span>
-            <span className="material-symbols-outlined text-[#2C4D03] text-xl">psychology</span>
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Selected Model</span>
+            <span className="material-symbols-outlined text-[#2C4D03] text-[18px]">psychology</span>
           </div>
-          <div className="text-lg font-bold text-[#1B1C1A]">{selectedModel.split(' ')[0]}</div>
-          <div className="text-xs text-[#74796A] mt-1 flex items-center gap-1">
-            <span className="material-symbols-outlined text-sm">speed</span>
+          <div className="text-[15px] font-bold text-[#1B1C1A] leading-none">{selectedModel.split(' ')[0]}</div>
+          <div className="text-[11px] text-[#74796A] flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">speed</span>
             <span>High Confidence</span>
           </div>
         </div>
@@ -228,7 +228,7 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
             </span>
           </div>
 
-          <div className="bg-white border border-[#E8E3DA] rounded-xl shadow-xs overflow-hidden flex flex-col min-h-[620px]">
+          <div className="bg-white border border-[#E8E3DA] rounded-[18px] shadow-[0_8px_18px_rgba(20,33,18,0.03)] overflow-hidden flex flex-col min-h-[620px]">
             {/* Document Header Banner */}
             <div className="bg-[#F5F3EF] border-b border-[#E8E3DA] p-6 flex flex-col items-center justify-center text-center">
               <div className="w-14 h-14 bg-[#2C4D03] text-white rounded-full flex items-center justify-center mb-3 shadow-sm">
@@ -412,19 +412,18 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
         {/* Right Column (1-col): Configuration & Export Actions */}
         <div className="space-y-6">
           {/* Section: Report Configuration */}
-          <section className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs space-y-4">
+          <section className="bg-white border border-[#E8E3DA] rounded-[18px] p-5 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-4">
             <h3 className="text-sm font-bold text-[#1B1C1A] border-b border-[#E8E3DA] pb-2 flex items-center gap-2">
               <span className="material-symbols-outlined text-lg text-[#2C4D03]">tune</span>
               <span>Report Configuration</span>
             </h3>
 
-            {/* Select Report Type */}
             <div>
-              <label className="block text-xs font-bold text-[#1B1C1A] mb-1">Report Document Title</label>
+              <label className="block text-[11px] font-bold text-[#1B1C1A] mb-1">Report Document Title</label>
               <select
                 value={selectedReportType}
                 onChange={(e) => setSelectedReportType(e.target.value)}
-                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-lg p-2.5 text-xs font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
+                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-[10px] p-2.5 text-[11px] font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
               >
                 <option>Climate Prediction Report</option>
                 <option>Sahel Monsoon & Drought Executive Brief</option>
@@ -433,13 +432,12 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
               </select>
             </div>
 
-            {/* Select Dataset */}
             <div>
-              <label className="block text-xs font-bold text-[#1B1C1A] mb-1">Target Dataset</label>
+              <label className="block text-[11px] font-bold text-[#1B1C1A] mb-1">Target Dataset</label>
               <select
                 value={selectedDataset}
                 onChange={(e) => setSelectedDataset(e.target.value)}
-                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-lg p-2.5 text-xs font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
+                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-[10px] p-2.5 text-[11px] font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
               >
                 <option>West Africa v4</option>
                 <option>Sahel Precipitation 2023</option>
@@ -449,13 +447,12 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
               </select>
             </div>
 
-            {/* Select Model */}
             <div>
-              <label className="block text-xs font-bold text-[#1B1C1A] mb-1">Predictive Model</label>
+              <label className="block text-[11px] font-bold text-[#1B1C1A] mb-1">Predictive Model</label>
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-lg p-2.5 text-xs font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
+                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-[10px] p-2.5 text-[11px] font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
               >
                 <option>Artificial Neural Network (ANN)</option>
                 <option>Multivariate Linear Regression</option>
@@ -463,13 +460,12 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
               </select>
             </div>
 
-            {/* Forecast Period */}
             <div>
-              <label className="block text-xs font-bold text-[#1B1C1A] mb-1">Forecast Period</label>
+              <label className="block text-[11px] font-bold text-[#1B1C1A] mb-1">Forecast Period</label>
               <select
                 value={forecastPeriod}
                 onChange={(e) => setForecastPeriod(e.target.value)}
-                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-lg p-2.5 text-xs font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
+                className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-[10px] p-2.5 text-[11px] font-bold text-[#1B1C1A] focus:outline-none focus:ring-2 focus:ring-[#2C4D03] cursor-pointer"
               >
                 <option>2024 - 2025</option>
                 <option>2025 - 2030</option>
@@ -561,7 +557,7 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
           </section>
 
           {/* Section: Export Options */}
-          <section className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs space-y-3">
+          <section className="bg-white border border-[#E8E3DA] rounded-[18px] p-5 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-3">
             <h3 className="text-sm font-bold text-[#1B1C1A] border-b border-[#E8E3DA] pb-2 flex items-center gap-2">
               <span className="material-symbols-outlined text-lg text-[#2C4D03]">download</span>
               <span>Export Options</span>
@@ -570,9 +566,9 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
             <div className="space-y-2">
               <button
                 onClick={handleExportPDF}
-                className="w-full flex items-center gap-3 p-3 bg-white border border-[#E8E3DA] rounded-xl hover:border-[#2C4D03] hover:bg-[#F5F3EF] transition-all text-left cursor-pointer group"
+                className="w-full flex items-center gap-3 p-3 bg-white border border-[#E8E3DA] rounded-[12px] hover:border-[#2C4D03] hover:bg-[#F5F3EF] transition-all text-left cursor-pointer group"
               >
-                <div className="w-9 h-9 rounded-lg bg-[#FFDAD6] text-[#93000A] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-[10px] bg-[#FFDAD6] text-[#93000A] flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-lg">picture_as_pdf</span>
                 </div>
                 <div>
@@ -583,9 +579,9 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
 
               <button
                 onClick={handleExportCSV}
-                className="w-full flex items-center gap-3 p-3 bg-white border border-[#E8E3DA] rounded-xl hover:border-[#2C4D03] hover:bg-[#F5F3EF] transition-all text-left cursor-pointer group"
+                className="w-full flex items-center gap-3 p-3 bg-white border border-[#E8E3DA] rounded-[12px] hover:border-[#2C4D03] hover:bg-[#F5F3EF] transition-all text-left cursor-pointer group"
               >
-                <div className="w-9 h-9 rounded-lg bg-[#B8ECC2] text-[#3D6C4B] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-[10px] bg-[#B8ECC2] text-[#3D6C4B] flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-lg">csv</span>
                 </div>
                 <div>
@@ -596,9 +592,9 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
 
               <button
                 onClick={handlePrint}
-                className="w-full flex items-center gap-3 p-3 bg-white border border-[#E8E3DA] rounded-xl hover:border-[#2C4D03] hover:bg-[#F5F3EF] transition-all text-left cursor-pointer group"
+                className="w-full flex items-center gap-3 p-3 bg-white border border-[#E8E3DA] rounded-[12px] hover:border-[#2C4D03] hover:bg-[#F5F3EF] transition-all text-left cursor-pointer group"
               >
-                <div className="w-9 h-9 rounded-lg bg-[#E4E2DE] text-[#1B1C1A] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-[10px] bg-[#E4E2DE] text-[#1B1C1A] flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-lg">print</span>
                 </div>
                 <div>
@@ -612,7 +608,7 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
       </div>
 
       {/* 4. Section: Report History */}
-      <section className="bg-white border border-[#E8E3DA] rounded-xl p-6 shadow-xs space-y-4">
+      <section className="bg-white border border-[#E8E3DA] rounded-[18px] p-5 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#E8E3DA] pb-4">
           <div>
             <h2 className="text-base font-bold text-[#1B1C1A] flex items-center gap-2">
@@ -633,7 +629,7 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
               placeholder="Search history..."
-              className="w-full pl-9 pr-3 py-1.5 bg-[#F5F3EF] border border-[#E8E3DA] rounded-lg text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03] focus:outline-none"
+              className="w-full pl-9 pr-3 py-1.5 bg-[#F5F3EF] border border-[#E8E3DA] rounded-[10px] text-xs text-[#1B1C1A] focus:ring-2 focus:ring-[#2C4D03] focus:outline-none"
             />
           </div>
         </div>

@@ -18,17 +18,17 @@ import { PlatformDashboard } from './components/PlatformDashboard';
 
 export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('landing');
-  const [platformTab, setPlatformTab] = useState<PlatformTab>('dashboard');
+  const [platformTab, setPlatformTab] = useState<PlatformTab>('visualizations');
   const [userEmail, setUserEmail] = useState<string>('researcher@ecopredict.ai');
   const [resetEmail, setResetEmail] = useState<string>('researcher@ecopredict.ai');
 
-  const navigateToPlatform = (tab: PlatformTab = 'dashboard') => {
+  const navigateToPlatform = (tab: PlatformTab = 'visualizations') => {
     setPlatformTab(tab);
     setActiveView('platform');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleExplorePlatform = (tab: PlatformTab = 'dashboard') => {
+  const handleExplorePlatform = (tab: PlatformTab = 'visualizations') => {
     setPlatformTab(tab);
     setActiveView('login');
     window.scrollTo({ top: 0, behavior: 'smooth' });

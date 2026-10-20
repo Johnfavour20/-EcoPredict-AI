@@ -57,17 +57,16 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
       </div>
 
       {/* 2. Filter Panel */}
-      <div className="bg-white border border-[#E8E3DA] rounded-xl p-3 flex flex-wrap items-center gap-3 shadow-xs">
-        {/* Dataset Filter */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F5F3EF] rounded-lg border border-[#E8E3DA]">
-          <span className="material-symbols-outlined text-sm text-[#74796A]">database</span>
+      <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-2.5 flex flex-wrap items-center gap-2.5 shadow-[0_8px_18px_rgba(20,33,18,0.04)]">
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F5F3EF] rounded-[10px] border border-[#E8E3DA] min-w-[160px]">
+          <span className="material-symbols-outlined text-[15px] text-[#74796A]">database</span>
           <select
             value={selectedDataset}
             onChange={(e) => {
               setSelectedDataset(e.target.value);
               triggerToast(`Filter updated: Dataset set to ${e.target.value}`);
             }}
-            className="bg-transparent font-bold text-xs text-[#1B1C1A] focus:outline-none cursor-pointer"
+            className="bg-transparent font-bold text-[11px] text-[#1B1C1A] focus:outline-none cursor-pointer w-full"
           >
             <option>West Africa v4</option>
             <option>Sahel Precipitation v3</option>
@@ -75,16 +74,15 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
           </select>
         </div>
 
-        {/* Region Filter */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F5F3EF] rounded-lg border border-[#E8E3DA]">
-          <span className="material-symbols-outlined text-sm text-[#74796A]">public</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F5F3EF] rounded-[10px] border border-[#E8E3DA] min-w-[140px]">
+          <span className="material-symbols-outlined text-[15px] text-[#74796A]">public</span>
           <select
             value={selectedRegion}
             onChange={(e) => {
               setSelectedRegion(e.target.value);
               triggerToast(`Filter updated: Region set to ${e.target.value}`);
             }}
-            className="bg-transparent font-bold text-xs text-[#1B1C1A] focus:outline-none cursor-pointer"
+            className="bg-transparent font-bold text-[11px] text-[#1B1C1A] focus:outline-none cursor-pointer w-full"
           >
             <option>Sahel</option>
             <option>Guinea Coast</option>
@@ -94,16 +92,15 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
           </select>
         </div>
 
-        {/* Model Filter */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F5F3EF] rounded-lg border border-[#E8E3DA]">
-          <span className="material-symbols-outlined text-sm text-[#74796A]">model_training</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F5F3EF] rounded-[10px] border border-[#E8E3DA] min-w-[180px]">
+          <span className="material-symbols-outlined text-[15px] text-[#74796A]">model_training</span>
           <select
             value={selectedModelFilter}
             onChange={(e) => {
               setSelectedModelFilter(e.target.value);
               triggerToast(`Filter updated: Comparison set to ${e.target.value}`);
             }}
-            className="bg-transparent font-bold text-xs text-[#1B1C1A] focus:outline-none cursor-pointer"
+            className="bg-transparent font-bold text-[11px] text-[#1B1C1A] focus:outline-none cursor-pointer w-full"
           >
             <option>ANN vs Linear</option>
             <option>ANN Only</option>
@@ -111,16 +108,15 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
           </select>
         </div>
 
-        {/* Period Filter */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F5F3EF] rounded-lg border border-[#E8E3DA]">
-          <span className="material-symbols-outlined text-sm text-[#74796A]">calendar_today</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F5F3EF] rounded-[10px] border border-[#E8E3DA] min-w-[135px]">
+          <span className="material-symbols-outlined text-[15px] text-[#74796A]">calendar_today</span>
           <select
             value={selectedPeriod}
             onChange={(e) => {
               setSelectedPeriod(e.target.value);
               triggerToast(`Filter updated: Period set to ${e.target.value}`);
             }}
-            className="bg-transparent font-bold text-xs text-[#1B1C1A] focus:outline-none cursor-pointer"
+            className="bg-transparent font-bold text-[11px] text-[#1B1C1A] focus:outline-none cursor-pointer w-full"
           >
             <option>2020 - 2025</option>
             <option>2018 - 2027</option>
@@ -128,124 +124,98 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
           </select>
         </div>
 
-        <div className="flex-1"></div>
+        <div className="flex-1 min-w-[120px]" />
 
         <button
           onClick={handleResetFilters}
-          className="text-[#2C4D03] text-xs font-bold hover:underline px-2 cursor-pointer"
+          className="text-[#2C4D03] text-[11px] font-bold hover:text-[#43651C] px-2 py-1.5 rounded-md hover:bg-[#F5F3EF] transition-colors cursor-pointer"
         >
           Reset Filters
         </button>
       </div>
 
       {/* 3. Overview KPIs (Bento Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Dataset</p>
-          <p className="text-xl font-extrabold text-[#1B1C1A]">{selectedDataset}</p>
-          <div className="pt-2 flex items-center gap-1.5 text-[#396847] text-xs font-semibold">
-            <span className="material-symbols-outlined text-sm">check_circle</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Dataset</p>
+          <p className="text-[17px] font-extrabold text-[#1B1C1A] leading-none">{selectedDataset}</p>
+          <div className="pt-2 flex items-center gap-1.5 text-[#396847] text-[11px] font-semibold">
+            <span className="material-symbols-outlined text-[14px]">check_circle</span>
             <span>Cleaned & Preprocessed</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Primary Model</p>
-          <p className="text-xl font-extrabold text-[#1B1C1A]">ANN</p>
-          <div className="pt-2 flex items-center gap-1.5 text-[#2C4D03] text-xs font-semibold">
-            <span className="material-symbols-outlined text-sm">psychology</span>
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Primary Model</p>
+          <p className="text-[17px] font-extrabold text-[#1B1C1A] leading-none">ANN</p>
+          <div className="pt-2 flex items-center gap-1.5 text-[#2C4D03] text-[11px] font-semibold">
+            <span className="material-symbols-outlined text-[14px]">psychology</span>
             <span>High Confidence</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Period</p>
-          <p className="text-xl font-extrabold text-[#1B1C1A]">2024–2025</p>
-          <div className="pt-2 flex items-center gap-1.5 text-[#74796A] text-xs font-semibold">
-            <span className="material-symbols-outlined text-sm">update</span>
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Period</p>
+          <p className="text-[17px] font-extrabold text-[#1B1C1A] leading-none">2024–2025</p>
+          <div className="pt-2 flex items-center gap-1.5 text-[#74796A] text-[11px] font-semibold">
+            <span className="material-symbols-outlined text-[14px]">update</span>
             <span>Future Projection</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 shadow-xs space-y-1">
-          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider">Predictions</p>
-          <p className="text-xl font-extrabold text-[#1B1C1A]">1,240</p>
-          <div className="pt-2 flex items-center gap-1.5 text-[#A65A35] text-xs font-semibold">
-            <span className="material-symbols-outlined text-sm">trending_up</span>
+        <div className="bg-white border border-[#E8E3DA] rounded-[18px] p-4 shadow-[0_8px_18px_rgba(20,33,18,0.03)] space-y-2">
+          <p className="text-[10px] font-bold text-[#74796A] uppercase tracking-[0.12em]">Predictions</p>
+          <p className="text-[17px] font-extrabold text-[#1B1C1A] leading-none">1,240</p>
+          <div className="pt-2 flex items-center gap-1.5 text-[#A65A35] text-[11px] font-semibold">
+            <span className="material-symbols-outlined text-[14px]">trending_up</span>
             <span>Across 12 stations</span>
           </div>
         </div>
       </div>
 
       {/* View Mode Subnav Tabs */}
-      <div className="flex flex-wrap border-b border-[#E8E3DA] gap-2">
-        <button
-          onClick={() => setActiveViewMode('trends')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeViewMode === 'trends'
-              ? 'border-[#2C4D03] text-[#2C4D03] bg-white rounded-t-lg'
-              : 'border-transparent text-[#74796A] hover:text-[#1B1C1A]'
-          }`}
-        >
-          <span className="material-symbols-outlined text-base">show_chart</span>
-          <span>Spatio-Temporal Trends</span>
-        </button>
-
-        <button
-          onClick={() => setActiveViewMode('monsoon')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeViewMode === 'monsoon'
-              ? 'border-[#2C4D03] text-[#2C4D03] bg-white rounded-t-lg'
-              : 'border-transparent text-[#74796A] hover:text-[#1B1C1A]'
-          }`}
-        >
-          <span className="material-symbols-outlined text-base">calendar_view_month</span>
-          <span>Monsoon Cycles</span>
-        </button>
-
-        <button
-          onClick={() => setActiveViewMode('scatter')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeViewMode === 'scatter'
-              ? 'border-[#2C4D03] text-[#2C4D03] bg-white rounded-t-lg'
-              : 'border-transparent text-[#74796A] hover:text-[#1B1C1A]'
-          }`}
-        >
-          <span className="material-symbols-outlined text-base">scatter_plot</span>
-          <span>Scatter Validation</span>
-        </button>
-
-        <button
-          onClick={() => setActiveViewMode('geospatial')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeViewMode === 'geospatial'
-              ? 'border-[#2C4D03] text-[#2C4D03] bg-white rounded-t-lg'
-              : 'border-transparent text-[#74796A] hover:text-[#1B1C1A]'
-          }`}
-        >
-          <span className="material-symbols-outlined text-base">map</span>
-          <span>Station Telemetry Grid</span>
-        </button>
+      <div className="flex flex-wrap gap-2 border-b border-[#E8E3DA] pb-1">
+        {[
+          { key: 'trends', label: 'Spatio-Temporal Trends', icon: 'show_chart' },
+          { key: 'monsoon', label: 'Monsoon Cycles', icon: 'calendar_view_month' },
+          { key: 'scatter', label: 'Scatter Validation', icon: 'scatter_plot' },
+          { key: 'geospatial', label: 'Station Telemetry Grid', icon: 'map' },
+        ].map(({ key, label, icon }) => {
+          const isActive = activeViewMode === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveViewMode(key as typeof activeViewMode)}
+              className={`px-3.5 py-2 text-[11px] font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+                isActive
+                  ? 'border-[#2C4D03] text-[#2C4D03] bg-[#F5F3EF] rounded-t-[10px]'
+                  : 'border-transparent text-[#74796A] hover:text-[#1B1C1A]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">{icon}</span>
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Charts Section */}
       {activeViewMode === 'trends' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Chart 1: Historical Temperature Trend */}
-          <section className="bg-white border border-[#E8E3DA] rounded-xl p-6 shadow-xs flex flex-col h-96 space-y-4">
+          <section className="bg-white border border-[#E8E3DA] rounded-[18px] p-5 shadow-[0_8px_18px_rgba(20,33,18,0.03)] flex flex-col h-[22rem] space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-[#E8E3DA]">
-              <h3 className="text-sm font-bold text-[#1B1C1A] flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-[#A65A35]">thermostat</span>
+              <h3 className="text-[13px] font-bold text-[#1B1C1A] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px] text-[#A65A35]">thermostat</span>
                 <span>Historical Temperature Trend (2020–2027)</span>
               </h3>
-              <span className="text-[10px] font-mono font-bold text-[#A65A35] bg-[#FFDEA7]/40 px-2.5 py-1 rounded-md">
+              <span className="text-[10px] font-mono font-bold text-[#A65A35] bg-[#FFDEA7]/40 px-2 py-1 rounded-md">
                 +1.51°C Anomaly
               </span>
             </div>
 
             <div className="flex-1 relative border-b border-l border-[#E8E3DA] pt-4 pb-2 pl-2 flex items-end justify-between">
-              {/* Y Axis Labels */}
-              <div className="absolute -left-6 bottom-0 top-2 flex flex-col justify-between text-[10px] text-[#74796A] font-mono">
+              <div className="absolute -left-5 bottom-0 top-2 flex flex-col justify-between text-[10px] text-[#74796A] font-mono leading-none">
                 <span>+2.0°</span>
                 <span>+1.5°</span>
                 <span>+1.0°</span>
@@ -304,7 +274,7 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
               </div>
             </div>
 
-            <div className="bg-[#F5F3EF] p-2.5 rounded-lg border border-[#E8E3DA] flex justify-between items-center text-xs">
+            <div className="bg-[#F5F3EF] p-2.5 rounded-[10px] border border-[#E8E3DA] flex justify-between items-center text-[11px]">
               <span className="text-[#43493C]">Selected Reading ({activeMetricData.year}):</span>
               <span className="font-mono font-bold text-[#A65A35]">
                 +{activeMetricData.temperatureAnomaly}°C (Est. {activeMetricData.predictedTemp}°C)
@@ -312,21 +282,19 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
             </div>
           </section>
 
-          {/* Chart 2: Historical Rainfall Trend */}
-          <section className="bg-white border border-[#E8E3DA] rounded-xl p-6 shadow-xs flex flex-col h-96 space-y-4">
+          <section className="bg-white border border-[#E8E3DA] rounded-[18px] p-5 shadow-[0_8px_18px_rgba(20,33,18,0.03)] flex flex-col h-[22rem] space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-[#E8E3DA]">
-              <h3 className="text-sm font-bold text-[#1B1C1A] flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-[#2C4D03]">water_drop</span>
+              <h3 className="text-[13px] font-bold text-[#1B1C1A] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px] text-[#2C4D03]">water_drop</span>
                 <span>Historical Rainfall Trend (2020–2027)</span>
               </h3>
-              <span className="text-[10px] font-mono font-bold text-[#2C4D03] bg-[#B8ECC2] px-2.5 py-1 rounded-md">
+              <span className="text-[10px] font-mono font-bold text-[#2C4D03] bg-[#B8ECC2] px-2 py-1 rounded-md">
                 Avg. 815 mm/yr
               </span>
             </div>
 
             <div className="flex-1 relative border-b border-l border-[#E8E3DA] pt-4 pb-2 pl-2 flex items-end justify-around">
-              {/* Y Axis Labels */}
-              <div className="absolute -left-7 bottom-0 top-2 flex flex-col justify-between text-[10px] text-[#74796A] font-mono">
+              <div className="absolute -left-5 bottom-0 top-2 flex flex-col justify-between text-[10px] text-[#74796A] font-mono leading-none">
                 <span>1000</span>
                 <span>500</span>
                 <span>0</span>
@@ -356,7 +324,7 @@ export const ClimateVisualizations: React.FC<ClimateVisualizationsProps> = ({ tr
               ))}
             </div>
 
-            <div className="bg-[#F5F3EF] p-2.5 rounded-lg border border-[#E8E3DA] flex justify-between items-center text-xs">
+            <div className="bg-[#F5F3EF] p-2.5 rounded-[10px] border border-[#E8E3DA] flex justify-between items-center text-[11px]">
               <span className="text-[#43493C]">Selected Reading ({activeMetricData.year}):</span>
               <span className="font-mono font-bold text-[#2C4D03]">
                 {activeMetricData.rainfall} mm (Predicted: {activeMetricData.predictedRainfall} mm)

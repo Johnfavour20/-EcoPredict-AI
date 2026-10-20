@@ -27,32 +27,6 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
             A collaborative academic project dedicated to advancing climate resilience through high-performance computing and environmental data science.
           </p>
 
-          <div className="flex gap-4 pt-2">
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="p-2 rounded-lg bg-white border border-[#E8E3DA] text-[#43493C] hover:text-[#6E9445] transition-colors"
-              title="Global Regional Portal"
-            >
-              <span className="material-symbols-outlined text-lg">public</span>
-            </a>
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="p-2 rounded-lg bg-white border border-[#E8E3DA] text-[#43493C] hover:text-[#6E9445] transition-colors"
-              title="Contact Academic Team"
-            >
-              <span className="material-symbols-outlined text-lg">alternate_email</span>
-            </a>
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="p-2 rounded-lg bg-white border border-[#E8E3DA] text-[#43493C] hover:text-[#6E9445] transition-colors"
-              title="Data Hub Network"
-            >
-              <span className="material-symbols-outlined text-lg">hub</span>
-            </a>
-          </div>
         </div>
 
         {/* Platform Column */}

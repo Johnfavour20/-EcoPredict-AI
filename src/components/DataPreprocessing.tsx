@@ -1,8 +1,18 @@
 import React, { useState } from 'react';
 
+interface DatasetState {
+  name: string;
+  region: string;
+  rows: Array<Record<string, string>>;
+  columns: string[];
+  climateColumns: Array<{ name: string; type: string }>;
+}
+
 interface DataPreprocessingProps {
   onNavigateToModels: () => void;
   triggerToast: (msg: string) => void;
+  uploadedDataset?: DatasetState | null;
+  onDatasetProcessed?: (dataset: DatasetState) => void;
 }
 
 interface PreprocessingConfig {
@@ -69,16 +79,182 @@ const DATASET_OPTIONS: DatasetOption[] = [
   },
 ];
 
+const coerceNumber = (value: string | number | undefined | null) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const createDatasetPreview = (rows: Array<Record<string, string>>, columns: string[]) => {
+  const safeRows = rows?.length ? rows : [];
+  const previewColumns = columns?.length ? columns : ['timestamp', 'temperature_c', 'rainfall_mm', 'region'];
+  return {
+    rows: safeRows.slice(0, 5),
+    columns: previewColumns,
+  };
+};
+
+export const resolveDatasetContext = (
+  uploadedDataset: DatasetState | null | undefined,
+  datasetOptions: DatasetOption[],
+  selectedDatasetId?: string | null
+) => {
+  const uploadedDatasetOption: DatasetOption | null = uploadedDataset
+    ? {
+        id: 'uploaded-dataset',
+        name: uploadedDataset.name,
+        region: uploadedDataset.region,
+        uploadedDate: 'Just now',
+        records: `${uploadedDataset.rows?.length ?? 0}`,
+        totalRecordsNum: uploadedDataset.rows?.length ?? 0,
+        featuresCount: uploadedDataset.columns?.length ?? 0,
+        missingValues: 0,
+        size: `${uploadedDataset.rows?.length ?? 0} rows`,
+        status: 'Verified',
+        outputName: `${uploadedDataset.name}_processed`,
+      }
+    : null;
+
+  const options = uploadedDatasetOption ? [uploadedDatasetOption, ...datasetOptions] : datasetOptions;
+  const fallbackId = options[0]?.id ?? '';
+  const selectedId = uploadedDataset
+    ? 'uploaded-dataset'
+    : selectedDatasetId && options.some((option) => option.id === selectedDatasetId)
+      ? selectedDatasetId
+      : fallbackId;
+
+  const selectedDataset = options.find((option) => option.id === selectedId) ?? options[0] ?? null;
+  const sourceDataset = uploadedDataset ?? selectedDataset ?? null;
+
+  return {
+    datasetOptions: options,
+    selectedDatasetId: selectedId,
+    selectedDataset,
+    sourceDataset,
+  };
+};
+
+const transformUploadedDataset = (
+  dataset: DatasetState | null,
+  config: PreprocessingConfig
+): DatasetState | null => {
+  if (!dataset || !dataset.rows.length) return dataset;
+
+  const columns = dataset.columns.length ? dataset.columns : Object.keys(dataset.rows[0] || {});
+  const uniqueRows = config.removeDuplicates
+    ? Array.from(
+        new Map(
+          dataset.rows.map((row) => [JSON.stringify(Object.entries(row).sort(([a], [b]) => a.localeCompare(b))), row])
+        ).values()
+      )
+    : dataset.rows;
+
+  const numericColumns = columns.filter((column) => {
+    const parsed = uniqueRows
+      .map((row) => coerceNumber(row[column]))
+      .filter((value): value is number => value !== null);
+    return parsed.length > 0;
+  });
+
+  const stats = Object.fromEntries(
+    numericColumns.map((column) => {
+      const values = uniqueRows
+        .map((row) => coerceNumber(row[column]))
+        .filter((value): value is number => value !== null);
+
+      if (!values.length) return [column, { min: 0, max: 0, mean: 0, std: 1 }];
+
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+      const std = Math.sqrt(
+        values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length || 1
+      );
+
+      return [column, { min, max, mean, std }];
+    })
+  );
+
+  const processedRows = uniqueRows.map((row) => {
+    const transformed: Record<string, string> = { ...row };
+
+    for (const column of columns) {
+      const currentValue = row[column];
+      const numericValue = coerceNumber(currentValue);
+
+      if (numericValue === null) {
+        if (config.handleMissingValues && column !== 'region') {
+          transformed[column] = '0';
+        }
+        continue;
+      }
+
+      if (config.handleMissingValues && numericValue === 0 && currentValue === '') {
+        transformed[column] = '0';
+        continue;
+      }
+
+      if (config.normalizeFeatures && numericValue !== null && stats[column]) {
+        const { min, max } = stats[column];
+        const range = max - min || 1;
+        transformed[column] = String(((numericValue - min) / range).toFixed(4));
+      }
+
+      if (config.standardizeFeatures && numericValue !== null && stats[column]) {
+        const { mean, std } = stats[column];
+        transformed[column] = String(((numericValue - mean) / (std || 1)).toFixed(4));
+      }
+    }
+
+    if (config.featureSelection) {
+      const selected = Object.fromEntries(
+        Object.entries(transformed).filter(([key]) => {
+          const normalized = key.toLowerCase();
+          return (
+            /(date|time|timestamp|temp|rain|precip|humidity|wind|region|lat|lon|longitude|latitude)/.test(normalized) ||
+            key === 'region'
+          );
+        })
+      );
+      return selected;
+    }
+
+    return transformed;
+  });
+
+  return {
+    ...dataset,
+    rows: processedRows,
+    columns: columns,
+  };
+};
+
 export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
   onNavigateToModels,
   triggerToast,
+  uploadedDataset,
+  onDatasetProcessed,
 }) => {
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>('ds-1');
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>(() => {
+    if (uploadedDataset) return 'uploaded-dataset';
+    return DATASET_OPTIONS[0]?.id ?? '';
+  });
   const [previewTab, setPreviewTab] = useState<'original' | 'processed'>('original');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<number>(0);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
+  const [processedRows, setProcessedRows] = useState<Array<Record<string, string>>>([]);
+  const [processedColumns, setProcessedColumns] = useState<string[]>([]);
+
+  const datasetContext = React.useMemo(
+    () => resolveDatasetContext(uploadedDataset, DATASET_OPTIONS, selectedDatasetId),
+    [uploadedDataset, selectedDatasetId]
+  );
+
+  const datasetOptions = datasetContext.datasetOptions;
+  const sourceDataset = datasetContext.sourceDataset;
+  const selectedDataset = datasetContext.selectedDataset;
 
   // Configuration Toggles
   const [config, setConfig] = useState<PreprocessingConfig>({
@@ -89,10 +265,26 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
     featureSelection: false,
   });
 
-  const selectedDataset =
-    DATASET_OPTIONS.find((d) => d.id === selectedDatasetId) || DATASET_OPTIONS[0];
-
   const selectedOperationsCount = Object.values(config).filter(Boolean).length;
+
+  React.useEffect(() => {
+    if (uploadedDataset) {
+      setSelectedDatasetId('uploaded-dataset');
+      const preview = createDatasetPreview(uploadedDataset.rows ?? [], uploadedDataset.columns ?? []);
+      setProcessedRows(preview.rows);
+      setProcessedColumns(preview.columns);
+      return;
+    }
+
+    if (!selectedDatasetId || !DATASET_OPTIONS.some((option) => option.id === selectedDatasetId)) {
+      setSelectedDatasetId(DATASET_OPTIONS[0]?.id ?? '');
+      return;
+    }
+
+    const preview = createDatasetPreview(sourceDataset?.rows ?? [], sourceDataset?.columns ?? []);
+    setProcessedRows(preview.rows);
+    setProcessedColumns(preview.columns);
+  }, [uploadedDataset, selectedDatasetId, sourceDataset]);
 
   const handleToggle = (key: keyof PreprocessingConfig) => {
     setConfig((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -101,6 +293,31 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
   const handleStartPreprocessing = () => {
     if (selectedOperationsCount === 0) {
       triggerToast('Please enable at least one preprocessing option');
+      return;
+    }
+
+    const datasetToProcess = uploadedDataset || {
+      name: selectedDataset.name,
+      region: selectedDataset.region,
+      rows: Array.from({ length: 5 }, (_, index) => ({
+        timestamp: `2023-10-${String(index + 1).padStart(2, '0')} 08:00`,
+        temperature_c: String(24 + index * 2),
+        rainfall_mm: String(10 + index * 4),
+        humidity_pct: String(50 + index * 6),
+        region: selectedDataset.region,
+      })),
+      columns: ['timestamp', 'temperature_c', 'rainfall_mm', 'humidity_pct', 'region'],
+      climateColumns: [
+        { name: 'timestamp', type: 'date' },
+        { name: 'temperature_c', type: 'temperature' },
+        { name: 'rainfall_mm', type: 'precipitation' },
+        { name: 'region', type: 'region' },
+      ],
+    };
+
+    const transformed = transformUploadedDataset(datasetToProcess, config);
+    if (!transformed) {
+      triggerToast('No valid rows were available for preprocessing.');
       return;
     }
 
@@ -115,7 +332,10 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
           setIsProcessing(false);
           setIsCompleted(true);
           setPreviewTab('processed');
-          triggerToast(`Dataset "${selectedDataset.name}" preprocessed successfully!`);
+          setProcessedRows(transformed.rows.slice(0, 5));
+          setProcessedColumns(transformed.columns);
+          onDatasetProcessed?.(transformed);
+          triggerToast(`Dataset "${transformed.name}" preprocessed successfully!`);
           return 100;
         }
         return prev + 22;
@@ -130,10 +350,10 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
         <div className="max-w-2xl">
           <div className="flex items-center gap-2 text-[#2C4D03] mb-1">
             <span className="material-symbols-outlined text-lg">memory</span>
-            <span className="text-xs font-bold tracking-wider uppercase">Machine Learning Pipeline</span>
+            <span className="text-[11px] font-semibold tracking-[0.18em] uppercase">Machine Learning Pipeline</span>
           </div>
-          <h1 className="text-3xl font-bold text-[#1B1C1A]">Data Preprocessing</h1>
-          <p className="text-sm text-[#43493C] mt-1">
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[#1B1C1A]">Data preprocessing</h1>
+          <p className="text-sm text-[#43493C] mt-1 leading-6">
             Prepare uploaded climate datasets for machine learning by reviewing data quality and applying preprocessing techniques before training prediction models.
           </p>
         </div>
@@ -141,7 +361,7 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
         <button
           onClick={handleStartPreprocessing}
           disabled={isProcessing}
-          className={`px-6 py-3.5 rounded-xl font-bold shadow-md active:scale-95 transition-all flex items-center gap-2 text-xs shrink-0 cursor-pointer ${
+          className={`px-6 py-3.5 rounded-[14px] font-semibold shadow-[0_10px_20px_rgba(42,74,27,0.12)] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 text-xs shrink-0 cursor-pointer ${
             isProcessing
               ? 'bg-[#E8E3DA] text-[#74796A] cursor-not-allowed'
               : 'bg-[#2C4D03] text-white hover:bg-[#43651C]'
@@ -155,7 +375,7 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
           ) : (
             <>
               <span className="material-symbols-outlined text-lg">play_arrow</span>
-              <span>Start Preprocessing</span>
+              <span>Start preprocessing</span>
             </>
           )}
         </button>
@@ -166,13 +386,13 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
         {/* Left Column: Step 1 & Step 5 */}
         <section className="col-span-12 lg:col-span-4 flex flex-col gap-6">
           {/* Step 1: Dataset Selection */}
-          <div className="bg-white border border-[#E8E3DA] rounded-xl p-6 shadow-xs space-y-4">
+          <div className="bg-white border border-[#E8E3DA] rounded-[20px] p-6 shadow-[0_10px_22px_rgba(20,33,18,0.04)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E8E3DA]">
-              <h3 className="text-sm font-bold text-[#1B1C1A] flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[#1B1C1A] flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#2C4D03]">folder_open</span>
-                <span>Dataset Selection</span>
+                <span>Dataset selection</span>
               </h3>
-              <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded">
+              <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded-full">
                 STEP 01
               </span>
             </div>
@@ -189,7 +409,7 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
                   }}
                   className="w-full bg-[#F5F3EF] border border-[#E8E3DA] rounded-lg p-3 pr-10 appearance-none focus:ring-2 focus:ring-[#2C4D03] focus:outline-none text-xs text-[#1B1C1A] font-semibold cursor-pointer"
                 >
-                  {DATASET_OPTIONS.map((ds) => (
+                  {datasetOptions.map((ds) => (
                     <option key={ds.id} value={ds.id}>
                       {ds.name}
                     </option>
@@ -204,21 +424,21 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
               <div className="bg-[#FBF9F5] p-4 rounded-lg border border-[#E8E3DA] space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-[#43493C]">Region:</span>
-                  <span className="font-semibold text-[#1B1C1A]">{selectedDataset.region}</span>
+                  <span className="font-semibold text-[#1B1C1A]">{sourceDataset?.region ?? 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#43493C]">Uploaded:</span>
-                  <span className="font-semibold text-[#1B1C1A]">{selectedDataset.uploadedDate}</span>
+                  <span className="font-semibold text-[#1B1C1A]">{uploadedDataset ? 'Just now' : selectedDataset?.uploadedDate ?? '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#43493C]">Records:</span>
-                  <span className="font-semibold text-[#1B1C1A]">{selectedDataset.records}</span>
+                  <span className="font-semibold text-[#1B1C1A]">{uploadedDataset ? `${uploadedDataset.rows?.length ?? 0}` : selectedDataset?.records ?? '0'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[#43493C]">Status:</span>
                   <span className="flex items-center gap-1 text-[#396847] font-bold text-xs">
                     <span className="material-symbols-outlined text-sm">check_circle</span>
-                    <span>{selectedDataset.status}</span>
+                    <span>{uploadedDataset ? 'Verified' : selectedDataset.status}</span>
                   </span>
                 </div>
               </div>
@@ -226,13 +446,13 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
           </div>
 
           {/* Step 5: Processing Summary */}
-          <div className="bg-white border border-[#E8E3DA] rounded-xl p-6 shadow-xs space-y-4">
+          <div className="bg-white border border-[#E8E3DA] rounded-[20px] p-6 shadow-[0_10px_22px_rgba(20,33,18,0.04)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E8E3DA]">
-              <h3 className="text-sm font-bold text-[#1B1C1A] flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[#1B1C1A] flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#2C4D03]">assignment_turned_in</span>
-                <span>Processing Summary</span>
+                <span>Processing summary</span>
               </h3>
-              <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded">
+              <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded-full">
                 STEP 05
               </span>
             </div>
@@ -271,7 +491,7 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
         <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
           {/* Step 2: KPI Dataset Metrics Summary */}
           <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white border border-[#E8E3DA] p-5 rounded-xl shadow-xs">
+            <div className="bg-white border border-[#E8E3DA] p-5 rounded-[18px] shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
               <p className="text-[11px] text-[#43493C] uppercase font-bold tracking-wider">Total Records</p>
               <div className="flex items-baseline gap-1 mt-2">
                 <h2 className="text-3xl font-bold text-[#2C4D03]">{selectedDataset.records.replace('k', '').replace('M', '')}</h2>
@@ -281,12 +501,12 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
               </div>
             </div>
 
-            <div className="bg-white border border-[#E8E3DA] p-5 rounded-xl shadow-xs">
+            <div className="bg-white border border-[#E8E3DA] p-5 rounded-[18px] shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
               <p className="text-[11px] text-[#43493C] uppercase font-bold tracking-wider">Features</p>
               <h2 className="text-3xl font-bold text-[#2C4D03] mt-2">{selectedDataset.featuresCount}</h2>
             </div>
 
-            <div className="bg-white border border-[#E8E3DA] p-5 rounded-xl shadow-xs">
+            <div className="bg-white border border-[#E8E3DA] p-5 rounded-[18px] shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
               <p className="text-[11px] text-[#43493C] uppercase font-bold tracking-wider">Missing Values</p>
               <div className="flex items-center gap-2 mt-2">
                 <h2 className="text-3xl font-bold text-[#A65A35]">
@@ -296,7 +516,7 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
               </div>
             </div>
 
-            <div className="bg-white border border-[#E8E3DA] p-5 rounded-xl shadow-xs">
+            <div className="bg-white border border-[#E8E3DA] p-5 rounded-[18px] shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
               <p className="text-[11px] text-[#43493C] uppercase font-bold tracking-wider">Dataset Size</p>
               <div className="flex items-baseline gap-1 mt-2">
                 <h2 className="text-3xl font-bold text-[#2C4D03]">{selectedDataset.size.split(' ')[0]}</h2>
@@ -306,13 +526,13 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
           </section>
 
           {/* Step 3: Preprocessing Configuration Toggles */}
-          <section className="bg-white border border-[#E8E3DA] rounded-xl p-6 shadow-xs">
+          <section className="bg-white border border-[#E8E3DA] rounded-[20px] p-6 shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#E8E3DA]">
-              <h3 className="text-sm font-bold text-[#1B1C1A] flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[#1B1C1A] flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#2C4D03]">tune</span>
-                <span>Preprocessing Configuration</span>
+                <span>Preprocessing configuration</span>
               </h3>
-              <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded">
+              <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded-full">
                 STEP 03
               </span>
             </div>
@@ -430,35 +650,35 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
           </section>
 
           {/* Step 4: Data Preview */}
-          <section className="bg-white border border-[#E8E3DA] rounded-xl shadow-xs overflow-hidden">
+          <section className="bg-white border border-[#E8E3DA] rounded-[20px] shadow-[0_10px_22px_rgba(20,33,18,0.04)] overflow-hidden">
             <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4 bg-[#F5F3EF] border-b border-[#E8E3DA]">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-[#1B1C1A]">Data Preview</h3>
-                <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded">
+                <h3 className="text-sm font-semibold text-[#1B1C1A]">Data preview</h3>
+                <span className="text-[10px] font-bold text-[#2C4D03] bg-[#B8ECC2]/40 px-2.5 py-1 rounded-full">
                   STEP 04
                 </span>
               </div>
 
-              <div className="flex bg-[#E8E3DA]/60 border border-[#E8E3DA] rounded-lg p-1">
+              <div className="flex bg-[#E8E3DA]/60 border border-[#E8E3DA] rounded-[12px] p-1">
                 <button
                   onClick={() => setPreviewTab('original')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-[10px] transition-all cursor-pointer ${
                     previewTab === 'original'
                       ? 'bg-white shadow-xs text-[#2C4D03]'
                       : 'text-[#43493C] hover:text-[#1B1C1A]'
                   }`}
                 >
-                  Original Data
+                  Original data
                 </button>
                 <button
                   onClick={() => setPreviewTab('processed')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-[10px] transition-all cursor-pointer ${
                     previewTab === 'processed'
                       ? 'bg-white shadow-xs text-[#2C4D03]'
                       : 'text-[#43493C] hover:text-[#1B1C1A]'
                   }`}
                 >
-                  Processed Preview
+                  Processed preview
                 </button>
               </div>
             </div>
@@ -467,93 +687,31 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F5F3EF]/60 text-[#43493C] text-[11px] border-b border-[#E8E3DA]">
-                    <th className="p-3 font-bold">Timestamp</th>
-                    <th className="p-3 font-bold">Temp (°C)</th>
-                    <th className="p-3 font-bold">Humidity (%)</th>
-                    <th className="p-3 font-bold">Precip. (mm)</th>
-                    <th className="p-3 font-bold">Wind (km/h)</th>
-                    <th className="p-3 font-bold text-center">Quality</th>
+                    {(previewTab === 'processed' ? processedColumns : sourceDataset && 'columns' in sourceDataset && sourceDataset.columns?.length ? sourceDataset.columns : ['timestamp', 'temperature_c', 'rainfall_mm', 'humidity_pct', 'region']).map((column) => (
+                      <th key={column} className="p-3 font-bold">{column}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="text-xs">
-                  <tr className="border-b border-[#E8E3DA] hover:bg-[#F5F3EF]/40 transition-colors">
-                    <td className="p-3 font-mono text-[#1B1C1A]">2023-10-12 08:00</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.62' : '28.4'}</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.72' : '72'}</td>
-                    <td className="p-3">0.0</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.41' : '12.5'}</td>
-                    <td className="p-3 text-center">
-                      <span className="w-2 h-2 rounded-full bg-[#396847] inline-block"></span>
-                    </td>
-                  </tr>
-
-                  <tr className="border-b border-[#E8E3DA] hover:bg-[#F5F3EF]/40 transition-colors">
-                    <td className="p-3 font-mono text-[#1B1C1A]">2023-10-12 09:00</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.68' : '29.1'}</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.68' : '68'}</td>
-                    <td className="p-3">0.0</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.48' : '14.2'}</td>
-                    <td className="p-3 text-center">
-                      <span className="w-2 h-2 rounded-full bg-[#396847] inline-block"></span>
-                    </td>
-                  </tr>
-
-                  <tr className="border-b border-[#E8E3DA] hover:bg-[#F5F3EF]/40 transition-colors">
-                    <td className="p-3 font-mono text-[#1B1C1A]">2023-10-12 10:00</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.78' : '30.5'}</td>
-                    <td className="p-3">
-                      {previewTab === 'original' ? (
-                        <span className="text-[#A65A35] font-bold bg-[#FFDEA7]/30 px-1.5 py-0.5 rounded">
-                          NaN
-                        </span>
-                      ) : (
-                        <span className="text-[#396847] font-bold bg-[#B8ECC2]/30 px-1.5 py-0.5 rounded">
-                          {config.normalizeFeatures ? '0.65' : '65.4'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3">0.2</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.38' : '11.8'}</td>
-                    <td className="p-3 text-center">
-                      {previewTab === 'original' ? (
-                        <span className="w-2 h-2 rounded-full bg-[#BA1A1A] inline-block" title="Missing value"></span>
-                      ) : (
-                        <span className="w-2 h-2 rounded-full bg-[#396847] inline-block" title="Imputed"></span>
-                      )}
-                    </td>
-                  </tr>
-
-                  <tr className="border-b border-[#E8E3DA] hover:bg-[#F5F3EF]/40 transition-colors">
-                    <td className="p-3 font-mono text-[#1B1C1A]">2023-10-12 11:00</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.84' : '31.2'}</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.62' : '62'}</td>
-                    <td className="p-3">1.5</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.62' : '18.4'}</td>
-                    <td className="p-3 text-center">
-                      <span className="w-2 h-2 rounded-full bg-[#396847] inline-block"></span>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-[#F5F3EF]/40 transition-colors">
-                    <td className="p-3 font-mono text-[#1B1C1A]">2023-10-12 12:00</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.92' : '32.8'}</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.58' : '58'}</td>
-                    <td className="p-3">0.0</td>
-                    <td className="p-3">{previewTab === 'processed' && config.normalizeFeatures ? '0.51' : '15.1'}</td>
-                    <td className="p-3 text-center">
-                      <span className="w-2 h-2 rounded-full bg-[#396847] inline-block"></span>
-                    </td>
-                  </tr>
+                  {(previewTab === 'processed' ? processedRows : sourceDataset && 'rows' in sourceDataset && Array.isArray(sourceDataset.rows) ? sourceDataset.rows : []).slice(0, 5).map((row, index) => (
+                    <tr key={`${previewTab}-${index}`} className="border-b border-[#E8E3DA] hover:bg-[#F5F3EF]/40 transition-colors">
+                      {(previewTab === 'processed' ? processedColumns : sourceDataset && 'columns' in sourceDataset && sourceDataset.columns?.length ? sourceDataset.columns : Object.keys(row)).map((column) => (
+                        <td key={`${column}-${index}`} className="p-3 font-mono text-[#1B1C1A]">
+                          {row[column] ?? '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
             <div className="p-3 bg-[#F5F3EF] border-t border-[#E8E3DA] flex justify-center">
               <button
-                onClick={() => triggerToast(`Viewing full dataset (${selectedDataset.records} records)`)}
+                onClick={() => triggerToast(`Viewing full dataset (${uploadedDataset ? uploadedDataset.rows?.length ?? 0 : selectedDataset?.records ?? '0'} records)`)}
                 className="text-[#2C4D03] font-semibold text-xs flex items-center gap-1 hover:underline cursor-pointer"
               >
-                <span>View full dataset ({selectedDataset.records} records)</span>
+                <span>View full dataset ({uploadedDataset ? uploadedDataset.rows?.length ?? 0 : selectedDataset?.records ?? '0'} records)</span>
                 <span className="material-symbols-outlined text-sm">open_in_new</span>
               </button>
             </div>
@@ -591,7 +749,13 @@ export const DataPreprocessing: React.FC<DataPreprocessingProps> = ({
                   View Logs
                 </button>
                 <button
-                  onClick={onNavigateToModels}
+                  onClick={() => {
+                    const transformed = uploadedDataset ? transformUploadedDataset(uploadedDataset, config) : null;
+                    if (transformed && onDatasetProcessed) {
+                      onDatasetProcessed(transformed);
+                    }
+                    onNavigateToModels();
+                  }}
                   className="px-5 py-2.5 bg-[#2C4D03] text-white rounded-xl text-xs font-bold shadow-md hover:bg-[#43651C] active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <span>Continue to Model Training</span>

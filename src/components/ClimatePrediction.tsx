@@ -3,6 +3,13 @@ import React, { useState, useMemo } from 'react';
 interface ClimatePredictionProps {
   onNavigateToEvaluation: () => void;
   triggerToast: (msg: string) => void;
+  uploadedDataset?: {
+    name: string;
+    region: string;
+    rows: Array<Record<string, string>>;
+    columns: string[];
+    climateColumns: Array<{ name: string; type: string }>;
+  } | null;
 }
 
 type PredictionModel = 'ANN' | 'Linear Regression';
@@ -99,9 +106,40 @@ const generatePredictionData = (
   return result;
 };
 
+const buildForecastDataFromApi = (apiForecast: any): MetricPredictionValue => {
+  const result: MetricPredictionValue = {
+    temperature: {},
+    rainfall: {},
+  };
+
+  if (!apiForecast?.forecast || !Array.isArray(apiForecast.forecast)) {
+    return result;
+  }
+
+  apiForecast.forecast.forEach((entry: any, index: number) => {
+    const date = new Date(entry.date || new Date());
+    const year = Number.isFinite(date.getTime()) ? date.getFullYear() : 2026 + index;
+    const tempBase = Number(entry.temperatureC ?? 25 + index);
+    const rainBase = Number(entry.rainfallMm ?? 40 + index * 5);
+
+    result.temperature[year] = Array.from({ length: 12 }, (_, monthIndex) => {
+      const seasonal = 0.8 + (Math.sin((monthIndex / 12) * Math.PI * 2) + 1) * 0.5;
+      return Number((tempBase * seasonal).toFixed(1));
+    });
+
+    result.rainfall[year] = Array.from({ length: 12 }, (_, monthIndex) => {
+      const seasonal = 0.6 + (Math.cos((monthIndex / 12) * Math.PI * 2) + 1) * 0.7;
+      return Number(Math.max(0, rainBase * seasonal).toFixed(1));
+    });
+  });
+
+  return result;
+};
+
 export const ClimatePrediction: React.FC<ClimatePredictionProps> = ({
   onNavigateToEvaluation,
   triggerToast,
+  uploadedDataset,
 }) => {
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<PredictionModel>('ANN');
@@ -119,6 +157,41 @@ export const ClimatePrediction: React.FC<ClimatePredictionProps> = ({
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const uploadedForecastRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!uploadedDataset || !uploadedDataset.rows.length) return;
+
+    const fallbackCountry = WEST_AFRICA_COUNTRIES.find((country) =>
+      uploadedDataset.region.toLowerCase().includes(country.toLowerCase())
+    ) || WEST_AFRICA_COUNTRIES[0];
+
+    setSelectedCountry((current) => current || fallbackCountry);
+
+    const years = uploadedDataset.rows
+      .map((row) => {
+        const value = row.timestamp || row.date || row.datetime || row.day;
+        if (!value) return null;
+        const parsed = new Date(String(value));
+        return Number.isNaN(parsed.getTime()) ? null : parsed.getFullYear();
+      })
+      .filter((year): year is number => typeof year === 'number');
+
+    if (years.length > 0) {
+      const minYear = Math.min(...years);
+      const maxYear = Math.max(...years);
+      setFromYear(String(minYear));
+      setToYear(String(maxYear));
+    }
+
+    const datasetKey = `${uploadedDataset.name}:${uploadedDataset.rows.length}`;
+    if (uploadedForecastRef.current !== datasetKey) {
+      uploadedForecastRef.current = datasetKey;
+      setTimeout(() => {
+        void handleGeneratePrediction();
+      }, 0);
+    }
+  }, [uploadedDataset]);
 
   const enabledMetrics = CLIMATE_METRICS.filter((m) => selectedMetrics[m.key]);
   const yearsRange = useMemo(() => {
@@ -141,7 +214,7 @@ export const ClimatePrediction: React.FC<ClimatePredictionProps> = ({
     Number(toYear) <= 2100 &&
     enabledMetrics.length > 0;
 
-  const handleGeneratePrediction = () => {
+  const handleGeneratePrediction = async () => {
     if (!canGenerate) {
       if (!selectedCountry) triggerToast('Please select a country first.');
       else if (!fromYear || !toYear) triggerToast('Please enter a valid year range.');
@@ -153,38 +226,84 @@ export const ClimatePrediction: React.FC<ClimatePredictionProps> = ({
     setIsGenerating(true);
     setProgress(5);
 
+    const fy = Number(fromYear);
+    const ty = Number(toYear);
+    const metrics = enabledMetrics.map((m) => m.key);
+
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
           setIsGenerating(false);
-
-          const fy = Number(fromYear);
-          const ty = Number(toYear);
-          const metrics = enabledMetrics.map((m) => m.key);
-          const data = generatePredictionData(selectedCountry, selectedModel, fy, ty, metrics);
-
-          const result: PredictionResult = {
-            country: selectedCountry,
-            model: selectedModel,
-            fromYear: fy,
-            toYear: ty,
-            view,
-            metrics,
-            generatedAt: new Date().toLocaleDateString('en-US', {
-              month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
-            }),
-            confidence: selectedModel === 'ANN' ? 94 : 88,
-            data,
-          };
-
-          setPrediction(result);
-          triggerToast(`Prediction for ${selectedCountry} (${fy}-${ty}) generated successfully!`);
           return 100;
         }
         return prev + 4;
       });
     }, 90);
+
+    try {
+      let data: MetricPredictionValue = generatePredictionData(selectedCountry, selectedModel, fy, ty, metrics);
+      let confidence = selectedModel === 'ANN' ? 94 : 88;
+
+      if (uploadedDataset && uploadedDataset.rows.length > 0) {
+        const response = await fetch('/api/generate-forecast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            datasetName: uploadedDataset.name,
+            region: selectedCountry || uploadedDataset.region,
+            rows: uploadedDataset.rows,
+            columns: uploadedDataset.columns,
+            climateColumns: uploadedDataset.climateColumns,
+          }),
+        });
+
+        const payload = await response.json();
+        if (response.ok && payload.success) {
+          data = buildForecastDataFromApi(payload.forecast);
+          confidence = Number(payload.forecast.metrics?.confidence ?? confidence);
+          triggerToast(`Prediction for ${selectedCountry || uploadedDataset.region} (${fy}-${ty}) generated from uploaded dataset.`);
+        } else {
+          triggerToast(payload.error || 'Uploaded dataset forecast unavailable; using demo prediction.');
+        }
+      } else {
+        triggerToast(`Prediction for ${selectedCountry} (${fy}-${ty}) generated successfully!`);
+      }
+
+      const result: PredictionResult = {
+        country: selectedCountry,
+        model: selectedModel,
+        fromYear: fy,
+        toYear: ty,
+        view,
+        metrics,
+        generatedAt: new Date().toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        }),
+        confidence,
+        data,
+      };
+
+      setPrediction(result);
+      setProgress(100);
+      setIsGenerating(false);
+    } catch (error) {
+      const fallbackData = generatePredictionData(selectedCountry, selectedModel, fy, ty, metrics);
+      setPrediction({
+        country: selectedCountry,
+        model: selectedModel,
+        fromYear: fy,
+        toYear: ty,
+        view,
+        metrics,
+        generatedAt: new Date().toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        }),
+        confidence: selectedModel === 'ANN' ? 94 : 88,
+        data: fallbackData,
+      });
+      triggerToast('Prediction engine recovered to demo values.');
+    }
   };
 
   const handleReset = () => {
@@ -232,6 +351,10 @@ export const ClimatePrediction: React.FC<ClimatePredictionProps> = ({
     }
     return v.toFixed(1);
   };
+
+  const sourceLabel = uploadedDataset
+    ? `Source: ${uploadedDataset.name} • ${uploadedDataset.region}`
+    : 'Source: demo dataset';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300 pb-8">
@@ -525,6 +648,10 @@ export const ClimatePrediction: React.FC<ClimatePredictionProps> = ({
                     Prediction Complete
                   </span>
                   <span className="text-xs text-[#74796A]">· {prediction.generatedAt}</span>
+                </div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#D9E7D0] bg-[#F2F8EE] px-3 py-1 text-[11px] font-bold text-[#2E5D3D] uppercase tracking-[0.12em]">
+                  <span className="material-symbols-outlined text-sm">upload_file</span>
+                  <span>{sourceLabel}</span>
                 </div>
                 <h2 className="text-xl font-bold text-[#1B1C1A]">
                   {prediction.country} · {prediction.fromYear} – {prediction.toYear}
