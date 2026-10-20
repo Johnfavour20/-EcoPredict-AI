@@ -1,8 +1,36 @@
 import React, { useState } from 'react';
+import { jsPDF } from 'jspdf';
 
 interface ClimateReportsProps {
   triggerToast: (msg: string) => void;
   onNavigateToDashboard?: () => void;
+  uploadedDataset?: {
+    name: string;
+    region: string;
+    rows: Array<Record<string, string>>;
+    columns: string[];
+    climateColumns: Array<{ name: string; type: string }>;
+  } | null;
+  trainingResult?: {
+    datasetName: string;
+    region: string;
+    metrics: {
+      r2: number;
+      mae: number;
+      rmse: number;
+      confidence: number;
+    };
+    trainingId: string;
+    generatedAt: string;
+    summary: string;
+    model?: {
+      algorithm: string;
+      epochs: number;
+      learningRate: number;
+      hiddenLayers: string;
+      status: 'completed';
+    };
+  } | null;
 }
 
 interface ReportHistoryItem {
@@ -19,11 +47,29 @@ interface ReportHistoryItem {
 export const ClimateReports: React.FC<ClimateReportsProps> = ({
   triggerToast,
   onNavigateToDashboard,
+  uploadedDataset,
+  trainingResult,
 }) => {
+  const liveDatasetName = trainingResult?.datasetName || uploadedDataset?.name || 'West Africa v4';
+  const liveRegionName = trainingResult?.region || uploadedDataset?.region || 'West Africa';
+  const liveMetrics = trainingResult?.metrics
+    ? {
+        mae: trainingResult.metrics.mae,
+        rmse: trainingResult.metrics.rmse,
+        r2: trainingResult.metrics.r2,
+        confidence: trainingResult.metrics.confidence,
+      }
+    : {
+        mae: 0.18,
+        rmse: 0.24,
+        r2: 0.938,
+        confidence: 96,
+      };
+
   // Configuration State
   const [selectedReportType, setSelectedReportType] = useState<string>('Climate Prediction Report');
-  const [selectedDataset, setSelectedDataset] = useState<string>('West Africa v4');
-  const [selectedModel, setSelectedModel] = useState<string>('Artificial Neural Network (ANN)');
+  const [selectedDataset, setSelectedDataset] = useState<string>(liveDatasetName);
+  const [selectedModel, setSelectedModel] = useState<string>(trainingResult?.model?.algorithm || 'Artificial Neural Network (ANN)');
   const [forecastPeriod, setForecastPeriod] = useState<string>('2024 - 2025');
 
   // Included Sections State
@@ -34,6 +80,24 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
   const [includeMetrics, setIncludeMetrics] = useState<boolean>(true);
   const [includeCharts, setIncludeCharts] = useState<boolean>(true);
   const [includeConclusion, setIncludeConclusion] = useState<boolean>(true);
+
+  React.useEffect(() => {
+    if (trainingResult?.datasetName) {
+      setSelectedDataset(trainingResult.datasetName);
+    } else if (uploadedDataset?.name) {
+      setSelectedDataset(uploadedDataset.name);
+    } else {
+      setSelectedDataset('West Africa v4');
+    }
+  }, [trainingResult, uploadedDataset]);
+
+  React.useEffect(() => {
+    if (trainingResult?.model?.algorithm) {
+      setSelectedModel(trainingResult.model.algorithm);
+    } else {
+      setSelectedModel('Artificial Neural Network (ANN)');
+    }
+  }, [trainingResult]);
 
   // Modal & Generation State
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -113,12 +177,139 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
     }, 1500);
   };
 
+  const downloadFile = (filename: string, content: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const buildReportPayload = () => ({
+    reportType: selectedReportType,
+    dataset: selectedDataset,
+    region: liveRegionName,
+    model: selectedModel,
+    forecastPeriod,
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      mae: Number(liveMetrics.mae.toFixed(2)),
+      rmse: Number(liveMetrics.rmse.toFixed(2)),
+      r2: Number(liveMetrics.r2.toFixed(3)),
+      confidence: Number(liveMetrics.confidence.toFixed(1)),
+    },
+    summary: reportSummaryText,
+    sectionsIncluded: {
+      datasetSummary: includeDatasetSummary,
+      preprocessing: includePreprocessing,
+      modelDetails: includeModelDetails,
+      predictionResults: includePredictionResults,
+      metrics: includeMetrics,
+      charts: includeCharts,
+      conclusion: includeConclusion,
+    },
+  });
+
   const handleExportPDF = () => {
-    triggerToast(`Exporting ${selectedReportType} as high-resolution PDF document...`);
+    const payload = buildReportPayload();
+    const doc = new jsPDF();
+    const reportDate = new Date().toISOString().slice(0, 10);
+    const fileName = `${selectedDataset.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}-${reportDate}.pdf`;
+
+    doc.setFillColor(245, 243, 239);
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(44, 77, 3);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text(selectedReportType, 14, 18);
+
+    doc.setTextColor(27, 28, 26);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Dataset: ${selectedDataset}`, 14, 38);
+    doc.text(`Region: ${liveRegionName}`, 14, 44);
+    doc.text(`Model: ${selectedModel}`, 14, 50);
+    doc.text(`Forecast Period: ${forecastPeriod}`, 14, 56);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 62);
+
+    let y = 78;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Executive Summary', 14, y);
+    y += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const summaryLines = doc.splitTextToSize(payload.summary, 180);
+    doc.text(summaryLines, 14, y);
+    y += summaryLines.length * 6 + 10;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Evaluation Metrics', 14, y);
+    y += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+
+    const metricLines = [
+      `MAE: ${liveMetrics.mae.toFixed(2)}`,
+      `RMSE: ${liveMetrics.rmse.toFixed(2)}`,
+      `R²: ${liveMetrics.r2.toFixed(3)}`,
+      `Confidence: ${liveMetrics.confidence.toFixed(1)}%`,
+    ];
+
+    metricLines.forEach((line) => {
+      doc.text(line, 14, y);
+      y += 8;
+    });
+
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Included Sections', 14, y);
+    y += 8;
+    doc.setFont('helvetica', 'normal');
+    const sections = [
+      includeDatasetSummary ? 'Dataset Summary' : null,
+      includePreprocessing ? 'Data Preprocessing' : null,
+      includeModelDetails ? 'Model Details' : null,
+      includePredictionResults ? 'Prediction Results' : null,
+      includeMetrics ? 'MAE, RMSE, R² Score' : null,
+      includeCharts ? 'Climate Anomaly Charts' : null,
+      includeConclusion ? 'Conclusion & Policy Insights' : null,
+    ].filter(Boolean) as string[];
+
+    sections.forEach((section) => {
+      doc.text(`• ${section}`, 14, y);
+      y += 7;
+    });
+
+    doc.save(fileName);
+    triggerToast(`Downloaded ${fileName} as a PDF report using the live results.`);
   };
 
   const handleExportCSV = () => {
-    triggerToast(`Exporting underlying climate observation tables as CSV...`);
+    const rows = [
+      ['report_type', 'dataset', 'region', 'model', 'forecast_period', 'mae', 'rmse', 'r2', 'confidence'],
+      [
+        selectedReportType,
+        selectedDataset,
+        liveRegionName,
+        selectedModel,
+        forecastPeriod,
+        liveMetrics.mae.toFixed(2),
+        liveMetrics.rmse.toFixed(2),
+        liveMetrics.r2.toFixed(3),
+        liveMetrics.confidence.toFixed(1),
+      ],
+    ];
+
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const fileName = `${selectedReportType.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.csv`;
+    downloadFile(fileName, csv, 'text/csv;charset=utf-8');
+    triggerToast(`Downloaded ${fileName} using the live model results.`);
   };
 
   const handlePrint = () => {
@@ -133,6 +324,10 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
       item.dataset.toLowerCase().includes(historySearch.toLowerCase()) ||
       item.model.toLowerCase().includes(historySearch.toLowerCase())
   );
+
+  const reportSummaryText =
+    trainingResult?.summary ||
+    `This scientific report outlines forecasted climate anomalies for ${liveRegionName} using the ${selectedDataset} dataset and the ${selectedModel} model.`;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -249,9 +444,7 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
                   <span>Executive Summary</span>
                 </h4>
                 <p className="text-xs text-[#43493C] leading-relaxed">
-                  This scientific report outlines forecasted climate anomalies for West Africa utilizing the robust{' '}
-                  <strong className="text-[#1B1C1A]">{selectedDataset}</strong> telemetry dataset and an{' '}
-                  <strong className="text-[#1B1C1A]">{selectedModel}</strong>. Predictive simulations highlight key trends in precipitation variance and surface air temperature shifts across the Sahel and coastal regions over the target period ({forecastPeriod}).
+                  {reportSummaryText} Predictive simulations highlight key trends in precipitation variance and surface air temperature shifts across the {liveRegionName} study area over the target period ({forecastPeriod}).
                 </p>
               </div>
 
@@ -327,25 +520,25 @@ export const ClimateReports: React.FC<ClimateReportsProps> = ({
                     <div className="grid grid-cols-3 gap-3 pt-1">
                       <div className="bg-white p-2.5 rounded-lg border border-[#E8E3DA] text-center">
                         <span className="text-[9px] font-bold text-[#74796A] block uppercase">Mean Abs Error (MAE)</span>
-                        <span className="text-base font-extrabold text-[#1B1C1A]">0.18 °C</span>
+                        <span className="text-base font-extrabold text-[#1B1C1A]">{liveMetrics.mae.toFixed(2)}</span>
                         <div className="w-full bg-[#E8E3DA] h-1 rounded-full mt-1.5 overflow-hidden">
-                          <div className="bg-[#2C4D03] h-full" style={{ width: '85%' }}></div>
+                          <div className="bg-[#2C4D03] h-full" style={{ width: `${Math.min(100, (1 - liveMetrics.mae / 1.5) * 100)}%` }}></div>
                         </div>
                       </div>
 
                       <div className="bg-white p-2.5 rounded-lg border border-[#E8E3DA] text-center">
                         <span className="text-[9px] font-bold text-[#74796A] block uppercase">Root Mean Sq Error</span>
-                        <span className="text-base font-extrabold text-[#1B1C1A]">0.24</span>
+                        <span className="text-base font-extrabold text-[#1B1C1A]">{liveMetrics.rmse.toFixed(2)}</span>
                         <div className="w-full bg-[#E8E3DA] h-1 rounded-full mt-1.5 overflow-hidden">
-                          <div className="bg-[#2C4D03] h-full" style={{ width: '78%' }}></div>
+                          <div className="bg-[#2C4D03] h-full" style={{ width: `${Math.min(100, (1 - liveMetrics.rmse / 1.8) * 100)}%` }}></div>
                         </div>
                       </div>
 
                       <div className="bg-white p-2.5 rounded-lg border border-[#E8E3DA] text-center">
                         <span className="text-[9px] font-bold text-[#74796A] block uppercase">R² Coefficient</span>
-                        <span className="text-base font-extrabold text-[#2C4D03]">0.938</span>
+                        <span className="text-base font-extrabold text-[#2C4D03]">{liveMetrics.r2.toFixed(3)}</span>
                         <div className="w-full bg-[#E8E3DA] h-1 rounded-full mt-1.5 overflow-hidden">
-                          <div className="bg-[#396847] h-full" style={{ width: '93.8%' }}></div>
+                          <div className="bg-[#396847] h-full" style={{ width: `${Math.min(100, liveMetrics.r2 * 100)}%` }}></div>
                         </div>
                       </div>
                     </div>

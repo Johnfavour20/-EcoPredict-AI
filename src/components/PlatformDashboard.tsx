@@ -1448,6 +1448,8 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
             <ClimateReports
               triggerToast={triggerToast}
               onNavigateToDashboard={() => setActiveTab('dashboard')}
+              uploadedDataset={processedDatasetForTraining ?? uploadedDatasetForTraining}
+              trainingResult={trainingResult}
             />
           )}
 

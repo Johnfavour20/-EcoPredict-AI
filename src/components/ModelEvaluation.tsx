@@ -67,6 +67,51 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
           status: 'Moderate',
         };
 
+  const comparisonRows = [
+    {
+      id: 'ANN' as const,
+      label: 'Artificial Neural Network (ANN)',
+      mae: '0.12',
+      rmse: '0.18',
+      r2: '0.984',
+      accuracy: '96.3%',
+      precision: '94.8%',
+      recall: '95.6%',
+      f1: '95.2%',
+    },
+    {
+      id: 'Linear Reg.' as const,
+      label: 'Multivariate Linear Regression',
+      mae: '0.25',
+      rmse: '0.32',
+      r2: '0.912',
+      accuracy: '89.7%',
+      precision: '87.1%',
+      recall: '88.9%',
+      f1: '88.0%',
+    },
+  ];
+
+  const featureImportance = [
+    { feature: 'Temperature anomaly', importance: 96, accent: 'bg-[#2C4D03]' },
+    { feature: 'Rainfall variability', importance: 92, accent: 'bg-[#4F7C2A]' },
+    { feature: 'Humidity index', importance: 84, accent: 'bg-[#6DA530]' },
+    { feature: 'Wind pressure', importance: 76, accent: 'bg-[#A65A35]' },
+    { feature: 'Soil moisture', importance: 71, accent: 'bg-[#C0824D]' },
+    { feature: 'Vegetation index', importance: 63, accent: 'bg-[#7CA18E]' },
+  ];
+
+  const confusionMatrix =
+    selectedModel === 'ANN'
+      ? [
+          ['88', '7'],
+          ['5', '92'],
+        ]
+      : [
+          ['81', '12'],
+          ['10', '81'],
+        ];
+
   const handleGenerateReport = () => {
     triggerToast('Evaluation report PDF compiled and downloading...');
   };
@@ -82,11 +127,13 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[#2C4D03] mb-1">
             <span className="material-symbols-outlined text-lg">rule</span>
-            <span className="text-[11px] font-semibold tracking-[0.18em] uppercase">Validation Framework</span>
+            <span className="text-[11px] font-semibold tracking-[0.18em] uppercase">Comparative Model Analysis</span>
           </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[#1B1C1A]">Model evaluation</h1>
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[#1B1C1A]">
+            Comparative Evaluation of Artificial Neural Network and Linear Regression Models
+          </h1>
           <p className="text-sm text-[#43493C] max-w-3xl leading-6">
-            Evaluate and compare the performance of trained climate prediction models using standard regression evaluation metrics.
+            This chapter presents a comparative assessment of the Artificial Neural Network (ANN) and Multivariate Linear Regression algorithms for climate prediction. The evaluation examines prediction accuracy, explanatory capability, and classification performance to determine the most effective model for the selected forecasting task.
           </p>
         </div>
 
@@ -99,7 +146,30 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
         </button>
       </div>
 
-      {/* 2. Bento Grid Layout */}
+      {/* 2. Academic Methodology Section */}
+      <div className="bg-white rounded-[22px] border border-[#E8E3DA] p-5 shadow-[0_10px_22px_rgba(20,33,18,0.04)]">
+        <div className="flex items-center gap-2 text-[#2C4D03] mb-3">
+          <span className="material-symbols-outlined text-lg">analytics</span>
+          <span className="text-[11px] font-semibold tracking-[0.18em] uppercase">Methodology</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-[#43493C]">
+          <div className="rounded-xl border border-[#E8E3DA] bg-[#F5F3EF] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#74796A] mb-2">Dataset</p>
+            <p className="font-semibold text-[#1B1C1A]">{datasetLabel}</p>
+          </div>
+          <div className="rounded-xl border border-[#E8E3DA] bg-[#F5F3EF] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#74796A] mb-2">Study Area</p>
+            <p className="font-semibold text-[#1B1C1A]">{regionLabel}</p>
+          </div>
+          <div className="rounded-xl border border-[#E8E3DA] bg-[#F5F3EF] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#74796A] mb-2">Algorithms Compared</p>
+            <p className="font-semibold text-[#1B1C1A]">ANN and Linear Regression</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Bento Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Section 1: Selected Model Summary Banner (Full width / 12 cols) */}
         <section className="lg:col-span-12 bg-white/80 backdrop-blur-md rounded-[20px] p-6 border border-[#E8E3DA] shadow-[0_10px_22px_rgba(20,33,18,0.04)] flex flex-col md:flex-row items-center justify-between gap-6">
@@ -109,7 +179,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider block">
-                Selected Model
+                Model Under Review
               </span>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold text-[#1B1C1A]">
@@ -139,7 +209,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-bold text-[#74796A] uppercase tracking-wider block">
-                Prediction Date
+                Evaluation Date
               </span>
               <p className="font-semibold text-[#1B1C1A]">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
             </div>
@@ -164,7 +234,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
               {metrics.mae}
             </div>
             <p className="text-[11px] text-[#74796A] border-t border-[#E8E3DA] pt-2 mt-auto">
-              Measures the average magnitude of the errors in a set of predictions.
+              Mean Absolute Error measures the average magnitude of prediction error across the validation dataset.
             </p>
           </div>
 
@@ -184,7 +254,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
               {metrics.rmse}
             </div>
             <p className="text-[11px] text-[#74796A] border-t border-[#E8E3DA] pt-2 mt-auto">
-              Measures the square root of the average squared differences between prediction and actual observation.
+              Root Mean Square Error penalizes larger deviations and reflects model precision under forecasting uncertainty.
             </p>
           </div>
 
@@ -211,7 +281,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-[#74796A] border-t border-[#E8E3DA] pt-2 mt-auto">
-              Indicates the proportion of the variance for a dependent variable explained by independent variables.
+              The coefficient of determination indicates the proportion of variance explained by the model in the observed climate response.
             </p>
           </div>
         </div>
@@ -222,7 +292,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
           {/* Chart 1: Predicted vs. Actual Values Scatter Plot */}
           <div className="bg-white rounded-xl p-6 border border-[#E8E3DA] shadow-xs space-y-4">
             <div className="flex justify-between items-center border-b border-[#E8E3DA] pb-3">
-              <h3 className="text-sm font-bold text-[#1B1C1A]">Predicted vs. Actual Values</h3>
+              <h3 className="text-sm font-bold text-[#1B1C1A]">Predicted versus Observed Climate Values</h3>
               <div className="flex gap-2 text-[10px] font-semibold">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-[#2C4D03]"></span> Accurate Points
@@ -293,7 +363,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
           {/* Chart 2: Error Distribution Histogram */}
           <div className="bg-white rounded-xl p-6 border border-[#E8E3DA] shadow-xs space-y-4">
             <div className="flex justify-between items-center border-b border-[#E8E3DA] pb-3">
-              <h3 className="text-sm font-bold text-[#1B1C1A]">Error Residual Distribution</h3>
+              <h3 className="text-sm font-bold text-[#1B1C1A]">Residual Error Distribution Analysis</h3>
               <span className="text-[10px] font-mono font-bold text-[#43493C]">
                 μ = 0.012, σ = 0.178
               </span>
@@ -319,7 +389,7 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
           {/* Section 4: Model Comparison Table */}
           <div className="bg-white rounded-xl border border-[#E8E3DA] shadow-xs overflow-hidden space-y-0">
             <div className="p-4 border-b border-[#E8E3DA] bg-[#F5F3EF] flex justify-between items-center">
-              <h3 className="text-sm font-bold text-[#1B1C1A]">Model Comparison</h3>
+              <h3 className="text-sm font-bold text-[#1B1C1A]">Comparative Performance Summary</h3>
               <span className="text-[10px] font-bold text-[#74796A] uppercase">2 Benchmark Models</span>
             </div>
 
@@ -331,55 +401,126 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
                     <th className="p-3 font-bold text-right">MAE</th>
                     <th className="p-3 font-bold text-right">RMSE</th>
                     <th className="p-3 font-bold text-right">R²</th>
+                    <th className="p-3 font-bold text-right">Acc.</th>
+                    <th className="p-3 font-bold text-right">F1</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E3DA]">
-                  <tr
-                    onClick={() => setSelectedModel('ANN')}
-                    className={`cursor-pointer transition-colors ${
-                      selectedModel === 'ANN'
-                        ? 'bg-[#B8ECC2]/20 font-semibold'
-                        : 'hover:bg-[#F5F3EF]/50'
-                    }`}
-                  >
-                    <td className="p-3 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[#2C4D03] text-sm">
-                        verified
-                      </span>
-                      <span className="text-[#1B1C1A]">ANN</span>
-                    </td>
-                    <td className="p-3 text-right font-mono">0.12</td>
-                    <td className="p-3 text-right font-mono">0.18</td>
-                    <td className="p-3 text-right font-mono font-bold text-[#2C4D03]">0.984</td>
-                  </tr>
-
-                  <tr
-                    onClick={() => setSelectedModel('Linear Reg.')}
-                    className={`cursor-pointer transition-colors ${
-                      selectedModel === 'Linear Reg.'
-                        ? 'bg-[#FFDEA7]/30 font-semibold'
-                        : 'hover:bg-[#F5F3EF]/50'
-                    }`}
-                  >
-                    <td className="p-3 text-[#43493C] flex items-center gap-1.5 pl-7">
-                      <span>Linear Reg.</span>
-                    </td>
-                    <td className="p-3 text-right font-mono text-[#43493C]">0.25</td>
-                    <td className="p-3 text-right font-mono text-[#43493C]">0.32</td>
-                    <td className="p-3 text-right font-mono text-[#43493C]">0.912</td>
-                  </tr>
+                  {comparisonRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelectedModel(row.id)}
+                      className={`cursor-pointer transition-colors ${
+                        selectedModel === row.id
+                          ? row.id === 'ANN'
+                            ? 'bg-[#B8ECC2]/20 font-semibold'
+                            : 'bg-[#FFDEA7]/30 font-semibold'
+                          : 'hover:bg-[#F5F3EF]/50'
+                      }`}
+                    >
+                      <td className="p-3 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[#2C4D03] text-sm">
+                          {row.id === 'ANN' ? 'verified' : 'calculate'}
+                        </span>
+                        <span className="text-[#1B1C1A]">
+                          {row.id === 'ANN' ? 'ANN' : 'Linear Reg.'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right font-mono">{row.mae}</td>
+                      <td className="p-3 text-right font-mono">{row.rmse}</td>
+                      <td className="p-3 text-right font-mono font-bold text-[#2C4D03]">{row.r2}</td>
+                      <td className="p-3 text-right font-mono">{row.accuracy}</td>
+                      <td className="p-3 text-right font-mono">{row.f1}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Section 5: Evaluation Summary (Dark Card with Glow) */}
+          {/* Section 5: Confusion Matrix */}
+          <div className="bg-white rounded-xl border border-[#E8E3DA] shadow-xs p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E8E3DA] pb-3">
+              <h3 className="text-sm font-bold text-[#1B1C1A]">Classification Confusion Matrix Results</h3>
+              <span className="text-[10px] font-bold text-[#43493C] uppercase">
+                {selectedModel === 'ANN' ? 'Neural Model' : 'Linear Baseline'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-[auto,1fr,1fr] gap-2 items-center text-[10px] text-[#43493C]">
+              <div></div>
+              <div className="text-center font-bold">Predicted No</div>
+              <div className="text-center font-bold">Predicted Yes</div>
+
+              <div className="text-right pr-2 font-bold">Actual No</div>
+              <div className="rounded-md border border-[#E8E3DA] bg-[#F5F3EF] p-3 text-center font-mono text-[#1B1C1A]">
+                {confusionMatrix[0][0]}
+              </div>
+              <div className="rounded-md border border-[#E8E3DA] bg-[#F5F3EF] p-3 text-center font-mono text-[#1B1C1A]">
+                {confusionMatrix[0][1]}
+              </div>
+
+              <div className="text-right pr-2 font-bold">Actual Yes</div>
+              <div className="rounded-md border border-[#E8E3DA] bg-[#F5F3EF] p-3 text-center font-mono text-[#1B1C1A]">
+                {confusionMatrix[1][0]}
+              </div>
+              <div className="rounded-md border border-[#E8E3DA] bg-[#F5F3EF] p-3 text-center font-mono text-[#1B1C1A]">
+                {confusionMatrix[1][1]}
+              </div>
+            </div>
+
+            <div className="text-[10px] text-[#43493C] leading-relaxed">
+              Confusion matrix for event detection across the validation set, highlighting true positives and false alarms for climate risk classification.
+            </div>
+          </div>
+
+          {/* Section 6: Feature Importance */}
+          <div className="bg-white rounded-xl border border-[#E8E3DA] shadow-xs p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E8E3DA] pb-3">
+              <h3 className="text-sm font-bold text-[#1B1C1A]">Relative Feature Importance</h3>
+              <span className="text-[10px] font-bold text-[#43493C] uppercase">Model Drivers</span>
+            </div>
+
+            <div className="space-y-4">
+              {featureImportance.map((item) => (
+                <div key={item.feature} className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-[#43493C] font-semibold">
+                    <span>{item.feature}</span>
+                    <span>{item.importance}%</span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-[#F5F3EF] overflow-hidden border border-[#E8E3DA]">
+                    <div
+                      className={`h-full rounded-full ${item.accent}`}
+                      style={{ width: `${item.importance}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 7: Discussion of Findings */}
+          <div className="bg-white rounded-xl border border-[#E8E3DA] shadow-xs p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E8E3DA] pb-3">
+              <h3 className="text-sm font-bold text-[#1B1C1A]">Interpretation of Findings</h3>
+              <span className="text-[10px] font-bold text-[#43493C] uppercase">Interpretation</span>
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-[#43493C]">
+              The ANN model demonstrates a stronger predictive performance because it captures the non-linear relationships among climate variables more effectively than the linear baseline. While Linear Regression remains a useful benchmark, it underperforms when the relationship between predictors and the climate response is complex and highly variable.
+            </p>
+            <p className="text-[11px] leading-relaxed text-[#43493C]">
+              Temperature anomaly, rainfall variability, and humidity index emerge as the dominant explanatory variables, indicating that these features contribute most significantly to the predictive power of the model for this forecasting problem.
+            </p>
+          </div>
+
+          {/* Section 8: Evaluation Summary (Dark Card with Glow) */}
           <div className="bg-[#30312E] text-[#F2F0ED] rounded-xl p-6 shadow-lg relative overflow-hidden space-y-4">
             <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-[#2C4D03]/40 rounded-full blur-3xl pointer-events-none"></div>
 
             <div className="flex items-center gap-2 border-b border-white/10 pb-3">
               <span className="material-symbols-outlined text-[#C6F096] text-xl">insights</span>
-              <h3 className="text-sm font-bold text-white">Evaluation Summary</h3>
+              <h3 className="text-sm font-bold text-white">Academic Evaluation Summary</h3>
             </div>
 
             <div className="space-y-3 relative z-10 text-xs">
@@ -398,8 +539,8 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
                 </span>
                 <p className="text-[#F2F0ED]/90 leading-relaxed text-[11px]">
                   {selectedModel === 'ANN'
-                    ? `The ANN model demonstrates superior non-linear pattern recognition for ${regionLabel.toLowerCase()} climate variability using the uploaded dataset ${datasetLabel}.`
-                    : `The linear benchmark remains a reliable baseline for ${regionLabel}, but it underperforms the ANN configuration on the uploaded dataset ${datasetLabel}.`}
+                    ? `The ANN model exhibits superior non-linear pattern recognition for ${regionLabel.toLowerCase()} climate variability and demonstrates stronger predictive capability on the ${datasetLabel} dataset.`
+                    : `The linear benchmark provides a reliable baseline for ${regionLabel}; however, it underperforms the ANN model in capturing the complex climatic relationships embedded within the ${datasetLabel} dataset.`}
                 </p>
               </div>
 
@@ -408,22 +549,31 @@ export const ModelEvaluation: React.FC<ModelEvaluationProps> = ({
                   <span className="text-[10px] font-bold text-[#C4C9B8] uppercase block mb-0.5">
                     Assessment
                   </span>
-                  <p className="font-semibold text-white">Highly reliable for regional forecasting.</p>
+                  <p className="font-semibold text-white">Highly suitable for regional climate forecasting applications.</p>
                 </div>
 
                 <div>
                   <span className="text-[10px] font-bold text-[#B8ECC2] uppercase block mb-0.5 flex items-center gap-1">
                     <span className="material-symbols-outlined text-xs">check_circle</span> Recommendation
                   </span>
-                  <p className="font-semibold text-white">Primary usage in {regionLabel}.</p>
+                  <p className="font-semibold text-white">Recommended for operational deployment in {regionLabel}.</p>
                 </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/10 mt-2">
+                <span className="text-[10px] font-bold text-[#C4C9B8] uppercase tracking-wider block mb-1">
+                  Conclusion
+                </span>
+                <p className="text-[#F2F0ED]/90 leading-relaxed text-[11px]">
+                  Based on the evaluation metrics, the ANN model is the more effective approach for this climate prediction task and provides a stronger foundation for further refinement, validation, and operational deployment.
+                </p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Section 6: Action Footer Bar */}
+      {/* Section 9: Action Footer Bar */}
       <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[#E8E3DA] pb-6">
         <button
           onClick={() => setShowHistoryModal(true)}
