@@ -767,7 +767,7 @@ export const PlatformDashboard: React.FC<PlatformDashboardProps> = ({
               {/* Welcome Banner */}
               <section className="relative overflow-hidden rounded-[24px] bg-[#2C4D03] text-white p-8 flex flex-col md:flex-row justify-between items-center shadow-[0_18px_32px_rgba(20,33,18,0.08)]">
                 <div className="relative z-10 max-w-2xl">
-                  <h2 className="text-3xl font-semibold mb-2 tracking-[-0.04em]">Welcome back, Dr. Deborah</h2>
+                  <h2 className="text-3xl font-semibold mb-2 tracking-[-0.04em]">Welcome back, Dr. Arisaka</h2>
                   <p className="text-base opacity-90 mb-6 leading-relaxed">
                     Monitor regional anomalies, refine predictive climate models, and export research reports for West African policy makers.
                   </p>
